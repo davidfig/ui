@@ -1,0 +1,5 @@
+module.exports = require('./src/ui')
+module.exports.window = module.exports.Window = require('./src/window')
+module.exports.button = module.exports.Button = require('./src/button')
+module.exports.editText = module.exports.EditText = require('./src/edit-text')
+module.exports.tree = module.exports.Tree = require('./src/tree')
