@@ -1,15 +1,14 @@
 const PIXI = require('pixi.js')
 const exists = require('exists')
-const Input = require('yy-input')
-// const ClipBoard = require('electron').clipboard
+const clipboard = require('copy-text-to-clipboard')
 
-const Window = require('./window')
+const Base = require('./base')
 
 const CURSOR_WIDTH = 3
 
 const STOP_AT_CHARS = ',.!@#$%^&*()/?<>-+_= '
 
-module.exports = class Text extends Window
+module.exports = class Text extends Base
 {
     /**
      *
@@ -45,10 +44,6 @@ module.exports = class Text extends Window
         this.wordsEdit = this.addChild(new PIXI.Container())
         this.interactive = true
         this.on('click', this.startEdit, this)
-
-        this.input = new Input({ noPointers: true })
-        this.input.on('keydown', this.keyDown, this)
-        this.input.on('down', this.down, this)
         this.layout()
     }
 
@@ -265,7 +260,7 @@ module.exports = class Text extends Window
         super.layout()
     }
 
-    startEdit(e)
+    startEdit(x, y)
     {
         if (!this.editing)
         {
@@ -285,9 +280,10 @@ module.exports = class Text extends Window
             this.select = []
             for (let letter of this.wordsEdit.children)
             {
-                if (letter.isLetter && letter.containsPoint(e.data.global))
+                const point = { x, y }
+                if (letter.isLetter && letter.containsPoint(point))
                 {
-                    const local = letter.toLocal(e.data.global)
+                    const local = letter.toLocal(point)
                     this.cursorPlace = letter.index + (local.x > letter.width / 2 ? 1 : 0)
                     this.layout()
                     return
@@ -347,9 +343,8 @@ module.exports = class Text extends Window
         }
     }
 
-    ctrl(left)
+    ctrl()
     {
-
     }
 
     keyDown(code, special, data)
@@ -466,7 +461,7 @@ module.exports = class Text extends Window
                         {
                             copy = this._text
                         }
-                        // ClipBoard.writeText(copy)
+                        clipboard(copy)
                         break
 
                     case 88: // ctrl-x
@@ -482,7 +477,7 @@ module.exports = class Text extends Window
                         {
                             cut = this._text
                         }
-                        // ClipBoard.writeText(cut)
+                        clipboard(cut)
                         if (this.select.length)
                         {
                             this.cursorPlace = this.select[0]

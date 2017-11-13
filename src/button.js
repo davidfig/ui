@@ -1,9 +1,9 @@
 const exists = require('exists')
 const PIXI = require('pixi.js')
 
-const Window = require('./window')
+const Base = require('./base')
 
-module.exports = class Button extends Window
+module.exports = class Button extends Base
 {
     /**
      * @param {object} [options]
@@ -97,7 +97,7 @@ module.exports = class Button extends Window
     drawWindowShape()
     {
         super.drawWindowShape()
-        if (this.isDown || this.select)
+        if (this.isButtonDown || this.select)
         {
             const shadow = this.get('shadow-size')
             this.windowGraphics
@@ -108,34 +108,37 @@ module.exports = class Button extends Window
         }
     }
 
-    down(e)
+    down()
     {
-        this.isDown = true
+        super.down(...arguments)
+        this.isButtonDown = true
         this.drawWindowShape()
         this.emit('pressed', this)
-        e.stopPropagation()
+        return true
     }
 
-    move(e)
+    move(x, y)
     {
-        if (this.isDown)
+        super.move(...arguments)
+        if (this.isButtonDown)
         {
-            if (!this.windowGraphics.containsPoint(e.data.global))
+            if (!this.windowGraphics.containsPoint({ x, y }))
             {
-                this.isDown = false
+                this.isButtonDown = false
                 this.drawWindowShape()
             }
-            e.stopPropagation()
+            return true
         }
     }
 
     up()
     {
-        if (this.isDown)
+        super.up(...arguments)
+        if (this.isButtonDown)
         {
+            this.isButtonDown = false
             this.emit('clicked', this)
+            return true
         }
-        this.isDown = false
-        this.drawWindowShape()
     }
 }

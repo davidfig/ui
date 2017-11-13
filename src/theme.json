@@ -18,7 +18,11 @@
         "shadow-alpha": 0.15,
         "shadow-blur": 2,
         "minimum-width": 50,
-        "minimum-height": 50
+        "minimum-height": 50,
+        "scrollbar-width": 10,
+        "scrollbar-foreground-color": "#8888ff",
+        "scrollbar-background-color": "#aaaaaa",
+        "scrollbar-spacing": 2
     },
     "Button": {
         "foreground-color": 0,
