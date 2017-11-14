@@ -45,25 +45,11 @@ function dialogSetup()
 {
     dialog = ui.addChild(new UI.window({ draggable: true, resizeable: true, width: 200, height: 100 }))
     dialog.position.set(10, 10)
-    OK = dialog.addChild(new UI.button({ text: 'OK' }))
-    Cancel = dialog.addChild(new UI.button( { text: 'Cancel' }))
-    OK.width = Cancel.width
-    edit = dialog.addChild(new UI.editText('edit me!', { maxCount: 10, align: 'center', count: 5 }))
-    edit.on('changed', dialogLayout)
-    dialog.on('resizing', dialogLayout)
-
-    dialogLayout()
+    dialog.addChild(new UI.stack([new UI.button({ text: 'OK' }), new UI.button({ text: 'Cancel' })], { horizontal: true, sameWidth: true, place: 'bottom' }))
+    dialog.addChild(new UI.editText('edit me!', { maxCount: 10, place: 'top-center', count: 5 }))
 
     dialog.theme['minimum-width'] = 200
     dialog.theme['minimum-height'] = 100
-}
-
-function dialogLayout()
-{
-    const spacing = 5
-    OK.position.set(dialog.center.x - OK.width - spacing, dialog.bottom - OK.height)
-    Cancel.position.set(dialog.center.x + spacing, dialog.bottom - Cancel.height)
-    edit.position.set(dialog.center.x - edit.width / 2, 0)
 }
 
 function update()

@@ -1,5 +1,5 @@
 const PIXI = require('pixi.js')
-const Input = require('../../../components/input')//yy-input')
+const Input = require('yy-input')
 
 const THEME = require('./theme.json')
 

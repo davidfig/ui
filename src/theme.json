@@ -46,7 +46,8 @@
         "edit-background-select-color": "#000000"
     },
     "Stack": {
-        "transparent": true
+        "between": 5,
+        "spacing": 0
     },
     "Dialog": {
         "text-padding-left": 10,
@@ -54,12 +55,4 @@
         "text-padding-top": 10,
         "text-padding-bottom": 10
     },
-    "Picture": {
-        "spacing": 0
-    },
-    "Spacer": {
-        "spacing": 0
-    },
-    "Scroll": {
-    }
 }

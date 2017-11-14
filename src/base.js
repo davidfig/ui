@@ -18,6 +18,7 @@ module.exports = class Window extends PIXI.Container
      * @param {number} [options.fit]
      * @param {boolean|string} [options.overflow] true, x, or y
      * @param {object} [options.theme]
+     * @param {string} [options.place] combination of top/center/bottom and left/center/bottom
      */
     constructor(options)
     {
@@ -37,6 +38,8 @@ module.exports = class Window extends PIXI.Container
         this.theme = options.theme || {}
         this.changeCursor = options.cursor || null
         this.draggable = options.draggable
+        this.transparent = options.transparent
+        this.place = options.place
         this.noFitX = exists(options.width)
         this._windowWidth = options.width || this.get('minimum-width')
         this.noFitY = exists(options.height)
@@ -44,6 +47,7 @@ module.exports = class Window extends PIXI.Container
         this.fit = options.fit
         this.overflow = options.overflow
         this.drawWindowShape()
+        this.on('added', this.layout, this)
     }
 
     getTheme()
@@ -117,7 +121,6 @@ module.exports = class Window extends PIXI.Container
         this._windowWidth = value
         this.noFitX = exists(value) ? true : false
         this.layout()
-        this.drawWindowShape()
     }
     get width()
     {
@@ -140,7 +143,6 @@ module.exports = class Window extends PIXI.Container
         this._windowHeight = value
         this.noFitY = exists(value) ? true : false
         this.layout()
-        this.drawWindowShape()
     }
     get height()
     {
@@ -149,27 +151,34 @@ module.exports = class Window extends PIXI.Container
 
     drawWindowShape()
     {
-        this.windowShadowGraphics
-            .clear()
-            .beginFill(0, this.get('shadow-alpha'))
-            .drawRoundedRect(0, 0, this._windowWidth, this._windowHeight, this.get('corners'))
-            .endFill()
-        const shadow = this.get('shadow-size')
-        this.windowGraphics
-            .clear()
-            .beginFill(this.get('background-color'))
-            .drawRoundedRect(shadow, shadow, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2, this.get('corners'))
-            .endFill()
-        if (this.resizeable)
+        if (!this.transparent)
         {
-            const size = this.get('resize-border-size')
-            this.resizeGraphics
+            this.windowShadowGraphics
                 .clear()
-                .beginFill(this.get('resize-border-color'))
-                .moveTo(this._windowWidth, this._windowHeight - size)
-                .lineTo(this._windowWidth, this._windowHeight)
-                .lineTo(this._windowWidth - size, this._windowHeight)
+                .beginFill(0, this.get('shadow-alpha'))
+                .drawRoundedRect(0, 0, this._windowWidth, this._windowHeight, this.get('corners'))
                 .endFill()
+            const shadow = this.get('shadow-size')
+            this.windowGraphics
+                .clear()
+                .beginFill(this.get('background-color'))
+                .drawRoundedRect(shadow, shadow, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2, this.get('corners'))
+                .endFill()
+            if (this.resizeable)
+            {
+                const size = this.get('resize-border-size')
+                this.resizeGraphics
+                    .clear()
+                    .beginFill(this.get('resize-border-color'))
+                    .moveTo(this._windowWidth, this._windowHeight - size)
+                    .lineTo(this._windowWidth, this._windowHeight)
+                    .lineTo(this._windowWidth - size, this._windowHeight)
+                    .endFill()
+            }
+            if (this.overflow)
+            {
+                this.drawOverflow()
+            }
         }
         const spacing = this.get('spacing')
         this.contentContainer.mask
@@ -178,10 +187,6 @@ module.exports = class Window extends PIXI.Container
             .drawRect(0, 0, this._windowWidth - spacing * 2, this._windowHeight - spacing * 2)
             .endFill()
         this.contentContainer.position.set(spacing, spacing)
-        if (this.overflow)
-        {
-            this.drawOverflow()
-        }
         this.dirty = true
     }
 
@@ -366,6 +371,16 @@ module.exports = class Window extends PIXI.Container
         sizes.y = (y + height > sizes.y) ? y + height : sizes.y
     }
 
+    getUIParent()
+    {
+        let parent = this.parent
+        while (parent && !parent.types)
+        {
+            parent = parent.parent
+        }
+        return parent
+    }
+
     layout()
     {
         if (this.fit)
@@ -382,7 +397,45 @@ module.exports = class Window extends PIXI.Container
                 this._windowHeight = this._wbs.y + spacing
             }
         }
+        if (this.place && this.parent)
+        {
+            const parent = this.getUIParent()
+            if (parent)
+            {
+                if (this.place.indexOf('top') !== -1)
+                {
+                    this.y = 0
+                }
+                else if (this.place.indexOf('bottom') !== -1)
+                {
+                    this.y = parent.bottom - this.height
+                }
+                else
+                {
+                    this.y = parent.center.y - this.height / 2
+                }
+                if (this.place.indexOf('left') !== -1)
+                {
+                    this.x = 0
+                }
+                else if (this.place.indexOf('right') !== -1)
+                {
+                    this.x = parent.right - this.width
+                }
+                else
+                {
+                    this.x = parent.center.x - this.width / 2
+                }
+            }
+        }
         this.drawWindowShape()
+        for (let w of this.content.children)
+        {
+            if (w.types)
+            {
+                w.layout()
+            }
+        }
         if (this.viewport)
         {
             this.viewport.resize(this._windowWidth, this._windowHeight, this.content.width, this.content.height)
