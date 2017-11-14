@@ -26,12 +26,10 @@
         "background-select-color": "#c9c9c9"
     },
     "Text": {
-        "foreground-color": "0",
-        "background-color": "#dddddd",
-        "corners": 0,
-        "spacing": 3
+        "corners": 0
     },
     "EditText": {
+        "spacing": 3,
         "edit-foreground-color": "#ffffff",
         "edit-background-color": "#888888",
         "edit-foreground-select-color": "#ffffff",
@@ -47,5 +45,10 @@
         "background-select-color": "#ddddff"
     },
     "Dialog": {
+    },
+    "Spacer": {
+        "minimum-width": 0,
+        "minimum-height": 0,
+        "spacing": 0
     }
 }

@@ -1,9 +1,9 @@
 const exists = require('exists')
 const PIXI = require('pixi.js')
 
-const Base = require('./base')
+const Window = require('./window')
 
-module.exports = class Button extends Base
+module.exports = class Button extends Window
 {
     /**
      * @param {object} [options]

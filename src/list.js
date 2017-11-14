@@ -1,12 +1,14 @@
 const PIXI = require('pixi.js')
 
-const Base = require('./base')
+const Window = require('./window')
 
-module.exports = class List extends Base
+module.exports = class List extends Window
 {
     /**
      * @param {object} [options]
      * @param {boolean} [options.many] select many
+     * @emit select (item, List)
+     * @emit unselect (item, List)
      */
     constructor(options)
     {
@@ -27,6 +29,7 @@ module.exports = class List extends Base
         {
             this.layout()
         }
+        return c
     }
 
     remove(c, noLayout)
@@ -69,7 +72,6 @@ module.exports = class List extends Base
         {
             this.selectGraphics
                 .beginFill(color)
-                .beginFill(color)
                 .drawRect(0, select.y, this._windowWidth - spacing, select.height)
                 .endFill()
         }
@@ -80,17 +82,19 @@ module.exports = class List extends Base
         const point = { x, y }
         for (let item of this.items)
         {
-            if ((item.types && item.windowGraphics.containsPoint(point)) || (item.containsPoint(point)))
+            if (item.containsPoint(point))
             {
                 if (this.many)
                 {
                     const index = this.selected.indexOf(item)
                     if (index !== -1)
                     {
+                        this.emit('unselect', item, this)
                         this.selected.splice(index, 1)
                     }
                     else
                     {
+                        this.emit('select', item, this)
                         this.selected.push(item)
                     }
                     this.layout()
@@ -99,6 +103,7 @@ module.exports = class List extends Base
                 {
                     if (this.selected[0] !== item)
                     {
+                        this.emit('select', item, this)
                         this.selected[0] = item
                         this.layout()
                     }

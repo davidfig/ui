@@ -53,11 +53,11 @@ function dialogSetup()
 
 function listSetup()
 {
-    const window = ui.addChild(new UI.Window({ draggable: true, resizeable: true, fitX: true, noOversizeY: true, height: 200}))
+    const window = ui.addChild(new UI.Window({ draggable: true, resizeable: true, overflow: true, fitX: true, noOversizeY: true, height: 200}))
     const list = window.addChild(new UI.List({ many: true }))
     for (let i = 0; i < 10; i++)
     {
-        list.add(new PIXI.Text('Item #' + i), true)
+        list.add(new UI.Text('Item #' + i), true)
     }
     list.layout()
     window.layout()

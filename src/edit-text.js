@@ -2,13 +2,13 @@ const PIXI = require('pixi.js')
 const exists = require('exists')
 const clipboard = require('copy-text-to-clipboard')
 
-const Base = require('./base')
+const Window = require('./window')
 
 const CURSOR_WIDTH = 3
 
 const STOP_AT_CHARS = ',.!@#$%^&*()/?<>-+_= '
 
-module.exports = class Text extends Base
+module.exports = class Text extends Window
 {
     /**
      *

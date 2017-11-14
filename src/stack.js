@@ -1,7 +1,7 @@
-const Base = require('./base')
+const Window = require('./window')
 const exists = require('exists')
 
-module.exports = class Stack extends Base
+module.exports = class Stack extends Window
 {
     /**
      * @param {Array} [items] items to add
@@ -34,7 +34,6 @@ module.exports = class Stack extends Base
                 this.add(item, true)
             }
         }
-        this.layout()
     }
 
     add(c, noReflow)
@@ -45,6 +44,7 @@ module.exports = class Stack extends Base
         {
             this.layout()
         }
+        return c
     }
 
     remove(c, noReflow)
@@ -136,20 +136,20 @@ module.exports = class Stack extends Base
             else
             {
                 w.y = i
-                i += w.height + spacing
-                switch (this.justify)
-                {
-                    case 'left':
-                        w.x = spacing
-                        break
+                i += w.height + between
+                // switch (this.justify)
+                // {
+                //     case 'left':
+                //         w.x = spacing
+                //         break
 
-                    case 'right':
-                        w.x = spacing * 2 + largestWidth - w.width
-                        break
+                //     case 'right':
+                //         w.x = spacing * 2 + largestWidth - w.width
+                //         break
 
-                    default:
-                        w.x = largestWidth / 2 - w.width / 2 + spacing
-                }
+                //     default:
+                //         w.x = largestWidth / 2 - w.width / 2 + spacing
+                // }
             }
         }
         super.layout()
