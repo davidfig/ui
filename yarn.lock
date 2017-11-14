@@ -64,9 +64,9 @@ pixi-gl-core@^1.0.3:
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/pixi-gl-core/-/pixi-gl-core-1.1.2.tgz#b5377f69bc3b3187b9a62430de031fde343e5439"
 
-pixi-viewport@^0.18.2:
-  version "0.18.2"
-  resolved "https://registry.yarnpkg.com/pixi-viewport/-/pixi-viewport-0.18.2.tgz#ef399cc5a84bdc46ccd64505c51fab61b4e23c13"
+pixi-viewport@^0.19.0:
+  version "0.19.0"
+  resolved "https://registry.yarnpkg.com/pixi-viewport/-/pixi-viewport-0.19.0.tgz#d88c9e1fc16dd80780e30f68924f3666faa00fa4"
   dependencies:
     exists "^1.0.1"
     pixi-ease "^0.13.3"

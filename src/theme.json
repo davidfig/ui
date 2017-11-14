@@ -10,10 +10,6 @@
         "selected-border-color": "#aaaaaa",
         "resize-border-size": 20,
         "resize-border-color": "#888888",
-        "text-padding-left": 0,
-        "text-padding-right": 0,
-        "text-padding-top": 0,
-        "text-padding-bottom": 0,
         "shadow-size": 2,
         "shadow-alpha": 0.2,
         "shadow-blur": 2,
@@ -27,10 +23,6 @@
     "Button": {
         "foreground-color": 0,
         "background-color": "#f9f9f9",
-        "text-padding-left": 20,
-        "text-padding-right": 20,
-        "text-padding-top": 10,
-        "text-padding-bottom": 10,
         "background-select-color": "#c9c9c9"
     },
     "Text": {
@@ -49,10 +41,11 @@
         "between": 5,
         "spacing": 0
     },
-    "Dialog": {
-        "text-padding-left": 10,
-        "text-padding-right": 10,
-        "text-padding-top": 10,
-        "text-padding-bottom": 10
+    "List": {
+        "between": 5,
+        "background-color": "#ffffff",
+        "background-select-color": "#ddddff"
     },
+    "Dialog": {
+    }
 }

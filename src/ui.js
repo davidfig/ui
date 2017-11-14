@@ -1,5 +1,6 @@
 const PIXI = require('pixi.js')
 const Input = require('yy-input')
+const exists = require('exists')
 
 const THEME = require('./theme.json')
 
@@ -9,6 +10,8 @@ module.exports = class UI extends PIXI.Container
      * @param {object} [options]
      * @param {object} [options.theme]
      * @param {object} [options.div]
+     * @param {boolean} [options.preventDefault=true] prevent default on input events
+     * @param {boolean} [options.chromeDebug=true] allow ctrl-r to refresh page and ctrl-shift-i to open debug window
      */
     constructor(options)
     {
@@ -16,7 +19,9 @@ module.exports = class UI extends PIXI.Container
         options = options || {}
         this.type = 'UI'
         this.theme = options.theme || THEME
-        this.input = new Input()
+        const preventDefault = exists(options.preventDefault) ? options.preventDefault : true
+        const chromeDebug = exists(options.chromeDebug) ? options.chromeDebug : true
+        this.input = new Input({ preventDefault, chromeDebug })
         this.input.on('down', this.down, this)
         this.input.on('move', this.move, this)
         this.input.on('up', this.up, this)

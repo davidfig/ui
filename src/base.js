@@ -1,7 +1,7 @@
 const PIXI = require('pixi.js')
 const exists = require('exists')
 const pointInTriangle = require('point-in-triangle')
-const Viewport = require('../../../components/pixi-viewport/')
+const Viewport = require('pixi-viewport')
 
 const THEME = require('./theme.json')
 
@@ -16,7 +16,11 @@ module.exports = class Window extends PIXI.Container
      * @param {boolean} [options.resizeable]
      * @param {boolean} [options.clickable]
      * @param {number} [options.fit]
-     * @param {boolean|string} [options.overflow] true, x, or y
+     * @param {number} [options.fitX]
+     * @param {number} [options.fitY]
+     * @param {boolean} [options.noOversizeX] don't allow horizontal resizing beyond the size of the content
+     * @param {boolean} [options.noOversizeY] don't allow vertical resizing beyond the size of the content
+     * @param {boolean|string} [options.overflow=true] true, x, or y
      * @param {object} [options.theme]
      * @param {string} [options.place] combination of top/center/bottom and left/center/bottom
      */
@@ -45,7 +49,11 @@ module.exports = class Window extends PIXI.Container
         this.noFitY = exists(options.height)
         this._windowHeight = options.height || this.get('minimum-height')
         this.fit = options.fit
-        this.overflow = options.overflow
+        this.fitX = options.fitX
+        this.fitY = options.fitY
+        this.noOversizeX = options.noOversizeX
+        this.noOversizeY = options.noOversizeY
+        this.overflow = exists(options.overflow) ? options.overflow : true
         this.drawWindowShape()
         this.on('added', this.layout, this)
     }
@@ -91,28 +99,6 @@ module.exports = class Window extends PIXI.Container
             {
                 return THEME[current][name]
             }
-        }
-    }
-
-    get overflow()
-    {
-        return this._overflow
-    }
-    set overflow(value)
-    {
-        this._overflow = value
-        if (this._overflow)
-        {
-            if (!this.viewport)
-            {
-                this.viewport = new Viewport(this.content, { screenWidth: this._windowWidth, screenHeight: this._windowHeight, worldWidth: this.content.width, worldHeight: this.content.height, noListeners: true })
-            }
-            this.viewport
-                .drag()
-                .decelerate()
-                .bounce({ time: 100, sides: 'vertical', underflow: 'left' })
-                .clamp({ direction: 'x', underflow: 'left' })
-                .wheel()
         }
     }
 
@@ -192,45 +178,48 @@ module.exports = class Window extends PIXI.Container
 
     drawOverflow()
     {
-        const spacing = this.get('spacing')
-        const scrollSpace = this.get('scrollbar-spacing')
         this.scrollGraphics.clear()
-        if (this.overflow !== 'x')
+        if (this.viewport)
         {
-            const percent = this.viewport.worldScreenHeight / this.content.height
-            if (percent < 1)
+            const spacing = this.get('spacing')
+            const scrollSpace = this.get('scrollbar-spacing')
+            if (this.overflow !== 'x')
             {
-                const innerHeight = this._windowHeight - spacing * 2
-                let start = (this.content.y / this.content.height) * -this.bottom
-                const height = percent * innerHeight
-                start = start < 0 ? 0 : start
-                start = start > innerHeight - height ? innerHeight - height : start
-                this.scrollGraphics
-                    .beginFill(this.get('scrollbar-background-color'))
-                    .drawRect(this._windowWidth - spacing + scrollSpace, spacing, spacing - scrollSpace * 2, innerHeight)
-                    .endFill()
-                    .beginFill(this.get('scrollbar-foreground-color'))
-                    .drawRect(this._windowWidth - spacing + scrollSpace, spacing + start, spacing - scrollSpace * 2, height)
-                    .endFill()
+                const percent = this.viewport.worldScreenHeight / this.content.height
+                if (percent < 1)
+                {
+                    const innerHeight = this._windowHeight - spacing * 2
+                    let start = (this.content.y / this.content.height) * -this.bottom
+                    const height = percent * innerHeight
+                    start = start < 0 ? 0 : start
+                    start = start > innerHeight - height ? innerHeight - height : start
+                    this.scrollGraphics
+                        .beginFill(this.get('scrollbar-background-color'))
+                        .drawRect(this._windowWidth - spacing + scrollSpace, spacing, spacing - scrollSpace * 2, innerHeight)
+                        .endFill()
+                        .beginFill(this.get('scrollbar-foreground-color'))
+                        .drawRect(this._windowWidth - spacing + scrollSpace, spacing + start, spacing - scrollSpace * 2, height)
+                        .endFill()
+                }
             }
-        }
-        if (this.overflow !== 'y')
-        {
-            const percent = this.viewport.worldScreenWidth / this.content.width
-            if (percent < 1)
+            if (this.overflow !== 'y')
             {
-                const innerWidth = this._windowWidth - spacing * 2
-                let start = (this.content.x / this.content.width) * -this.right
-                const width = percent * innerWidth
-                start = start < 0 ? 0 : start
-                start = start > innerWidth - width ? innerWidth - width : start
-                this.scrollGraphics
-                    .beginFill(this.get('scrollbar-background-color'))
-                    .drawRect(spacing, this._windowHeight - spacing + scrollSpace, innerWidth, spacing - scrollSpace * 2)
-                    .endFill()
-                    .beginFill(this.get('scrollbar-foreground-color'))
-                    .drawRect(spacing + start, this._windowHeight - spacing + scrollSpace, width, spacing - scrollSpace * 2)
-                    .endFill()
+                const percent = this.viewport.worldScreenWidth / this.content.width
+                if (percent < 1)
+                {
+                    const innerWidth = this._windowWidth - spacing * 2
+                    let start = (this.content.x / this.content.width) * -this.right
+                    const width = percent * innerWidth
+                    start = start < 0 ? 0 : start
+                    start = start > innerWidth - width ? innerWidth - width : start
+                    this.scrollGraphics
+                        .beginFill(this.get('scrollbar-background-color'))
+                        .drawRect(spacing, this._windowHeight - spacing + scrollSpace, innerWidth, spacing - scrollSpace * 2)
+                        .endFill()
+                        .beginFill(this.get('scrollbar-foreground-color'))
+                        .drawRect(spacing + start, this._windowHeight - spacing + scrollSpace, width, spacing - scrollSpace * 2)
+                        .endFill()
+                }
             }
         }
     }
@@ -292,6 +281,21 @@ module.exports = class Window extends PIXI.Container
             this._windowWidth = this._windowWidth < minWidth ? minWidth : this._windowWidth
             this._windowHeight = this.resizing.height + y - this.isDown.y
             this._windowHeight = this._windowHeight < minHeight ? minHeight : this._windowHeight
+            if (this.noOversizeX || this.noOversizeY)
+            {
+                const spacing = this.get('spacing') * 2
+                this._wbs = { x: 0, y: 0 }
+                this.getSize()
+                if (this.noOversizeX)
+                {
+                    this._windowWidth = this._windowWidth > this._wbs.x + spacing ? this._wbs.x + spacing : this._windowWidth
+                }
+                if (this.noOversizeY)
+                {
+                    this._windowHeight = this._windowHeight > this._wbs.y + spacing ? this._wbs.y + spacing : this._windowHeight
+                }
+            }
+
             this.layout()
             this.emit('resizing', this)
             return true
@@ -346,7 +350,7 @@ module.exports = class Window extends PIXI.Container
     {
         if (this.viewport)
         {
-            return this.viewport.wheel(dx, dy, dz, data)
+            return this.viewport.handleWheel(dx, dy, dz, data)
         }
     }
 
@@ -383,16 +387,16 @@ module.exports = class Window extends PIXI.Container
 
     layout()
     {
-        if (this.fit)
+        const spacing = this.get('spacing') * 2
+        if (this.fit || this.fitX || this.fitY)
         {
-            const spacing = this.get('spacing') * 2
             this._wbs = { x: 0, y: 0 }
             this.getSize()
-            if (!this.noFitX)
+            if (this.fitX || !this.noFitX)
             {
                 this._windowWidth = this._wbs.x + spacing
             }
-            if (!this.noFitY)
+            if (this.fitY || !this.noFitY)
             {
                 this._windowHeight = this._wbs.y + spacing
             }
@@ -428,6 +432,28 @@ module.exports = class Window extends PIXI.Container
                 }
             }
         }
+        if (this.overflow)
+        {
+            if (this.content.width > this._windowWidth - spacing || this.content.height > this._windowHeight - spacing)
+            {
+                this.viewport = new Viewport(this.content, { screenWidth: this._windowWidth - spacing, screenHeight: this._windowHeight - spacing, worldWidth: this.content.width, worldHeight: this.content.height, noListeners: true })
+                this.viewport
+                    .drag({ clampWheel: true, underflow: 'top-left' })
+                    .decelerate()
+                    .bounce({ time: 100, sides: 'vertical', underflow: 'left' })
+                    .clamp({ direction: 'x', underflow: 'left' })
+            }
+            else
+            {
+                this.viewport = null
+                this.content.position.set(0)
+            }
+        }
+        else
+        {
+            this.viewport = null
+            this.content.position.set(0)
+        }
         this.drawWindowShape()
         for (let w of this.content.children)
         {
@@ -435,10 +461,6 @@ module.exports = class Window extends PIXI.Container
             {
                 w.layout()
             }
-        }
-        if (this.viewport)
-        {
-            this.viewport.resize(this._windowWidth, this._windowHeight, this.content.width, this.content.height)
         }
     }
 
@@ -477,7 +499,6 @@ module.exports = class Window extends PIXI.Container
 
     keydown() {}
     keyup() {}
-    wheel() {}
 
     addChild() { return this.content.addChild(...arguments) }
     addChildAt() { return this.content.addChild(...arguments) }

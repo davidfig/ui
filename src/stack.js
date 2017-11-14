@@ -40,7 +40,7 @@ module.exports = class Stack extends Base
     add(c, noReflow)
     {
         this.items.push(c)
-        this.addChild(c)
+        this.content.addChild(c)
         if (!noReflow)
         {
             this.layout()
@@ -50,7 +50,7 @@ module.exports = class Stack extends Base
     remove(c, noReflow)
     {
         this.items.splice(this.items.indexOf(c), 1)
-        this.removeChild(c)
+        this.content.removeChild(c)
         if (!noReflow)
         {
             this.layout()

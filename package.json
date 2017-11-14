@@ -22,10 +22,10 @@
     "dependencies": {
         "copy-text-to-clipboard": "^1.0.3",
         "exists": "^1.0.1",
-        "pixi-viewport": "^0.18.2",
+        "pixi-viewport": "^0.20.7",
         "pixi.js": "^4.6.0",
         "point-in-triangle": "^1.0.1",
-        "yy-input": "^0.10.0"
+        "yy-input": "^0.10.3"
     },
     "devDependencies": {
         "fork-me-github": "^1.0.3",
