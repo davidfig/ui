@@ -1,5 +1,5 @@
 const PIXI = require('pixi.js')
-const Input = require('yy-input')
+const Input = require('../../../components/input')//yy-input')
 
 const THEME = require('./theme.json')
 
@@ -8,6 +8,7 @@ module.exports = class UI extends PIXI.Container
     /**
      * @param {object} [options]
      * @param {object} [options.theme]
+     * @param {object} [options.div]
      */
     constructor(options)
     {
@@ -21,6 +22,7 @@ module.exports = class UI extends PIXI.Container
         this.input.on('up', this.up, this)
         this.input.on('keydown', this.keydown, this)
         this.input.on('keyup', this.keyup, this)
+        this.input.on('wheel', this.wheel, this)
     }
 
     down(x, y, data)
@@ -40,7 +42,7 @@ module.exports = class UI extends PIXI.Container
                 }
             }
         }
-        const point = {x, y}
+        const point = { x, y }
         if (check(this))
         {
             data.event.stopPropagation()
@@ -64,6 +66,30 @@ module.exports = class UI extends PIXI.Container
                 }
             }
         }
+        if (check(this))
+        {
+            data.event.stopPropagation()
+        }
+    }
+
+    wheel(dx, dy, dz, data)
+    {
+        function check(parent)
+        {
+            for (let i = parent.children.length - 1; i >= 0; i--)
+            {
+                const child = parent.children[i]
+                if (child.types && child.windowGraphics.containsPoint(point))
+                {
+                    check(child)
+                    if (child.wheel(dx, dy, dz, data))
+                    {
+                        return true
+                    }
+                }
+            }
+        }
+        const point = { x: data.x, y: data.y }
         if (check(this))
         {
             data.event.stopPropagation()

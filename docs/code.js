@@ -8,12 +8,11 @@ let renderer, ui
 
 function test()
 {
-    renderer = new Renderer({ debug: true })
+    renderer = new Renderer({ debug: true, autoresize: true })
 
-    ui = renderer.addChild(new UI())
+    ui = renderer.addChild(new UI({ div: renderer.canvas }))
 
     dialogSetup()
-
     scrollSetup()
 
     renderer.interval(update)
@@ -24,7 +23,7 @@ let scroll
 
 function scrollSetup()
 {
-    scroll = ui.addChild(new UI.window({ resizeable: true, draggable: true, width: 500, height: 300, overflow: 'y' }))
+    scroll = ui.addChild(new UI.window({ resizeable: true, draggable: true, width: 500, height: 300, overflow: true }))
     const interval = 10
     for (let y = 20; y < scroll.bottom * 3; y += interval)
     {

@@ -15,7 +15,7 @@
         "text-padding-top": 0,
         "text-padding-bottom": 0,
         "shadow-size": 2,
-        "shadow-alpha": 0.15,
+        "shadow-alpha": 0.2,
         "shadow-blur": 2,
         "minimum-width": 50,
         "minimum-height": 50,

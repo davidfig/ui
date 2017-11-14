@@ -35,7 +35,7 @@ module.exports = class Window extends PIXI.Container
         this.resizeable = options.resizeable
         this.clickable = options.clickable
         this.theme = options.theme || {}
-        this.cursor = options.cursor
+        this.changeCursor = options.cursor || null
         this.draggable = options.draggable
         this.noFitX = exists(options.width)
         this._windowWidth = options.width || this.get('minimum-width')
@@ -99,8 +99,6 @@ module.exports = class Window extends PIXI.Container
         this._overflow = value
         if (this._overflow)
         {
-            const x = this._overflow === 'x' || this._overflow === true
-            const y = this._overflow === 'y' || this._overflow === true
             if (!this.viewport)
             {
                 this.viewport = new Viewport(this.content, { screenWidth: this._windowWidth, screenHeight: this._windowHeight, worldWidth: this.content.width, worldHeight: this.content.height, noListeners: true })
@@ -108,24 +106,9 @@ module.exports = class Window extends PIXI.Container
             this.viewport
                 .drag()
                 .decelerate()
-            const time = 150
-            if (x & y)
-            {
-                this.viewport
-                    .bounce({ time, underflow: 'left' })
-            }
-            else if (x)
-            {
-                this.viewport
-                    .clamp({ direction: 'y', underflow: 'left' })
-                    .bounce({ time, sides: 'horizontal', underflow: 'left'})
-            }
-            else if (y)
-            {
-                this.viewport
-                    .clamp({ direction: 'x', underflow: 'left' })
-                    .bounce({ time, sides: 'vertical', underflow: 'left' })
-            }
+                .bounce({ time: 100, sides: 'vertical', underflow: 'left' })
+                .clamp({ direction: 'x', underflow: 'left' })
+                .wheel()
         }
     }
 
@@ -181,6 +164,7 @@ module.exports = class Window extends PIXI.Container
         {
             const size = this.get('resize-border-size')
             this.resizeGraphics
+                .clear()
                 .beginFill(this.get('resize-border-color'))
                 .moveTo(this._windowWidth, this._windowHeight - size)
                 .lineTo(this._windowWidth, this._windowHeight)
@@ -205,21 +189,44 @@ module.exports = class Window extends PIXI.Container
     {
         const spacing = this.get('spacing')
         const scrollSpace = this.get('scrollbar-spacing')
+        this.scrollGraphics.clear()
         if (this.overflow !== 'x')
         {
-            const innerHeight = this._windowHeight - spacing * 2
-            let start = (this.content.y / this.content.height) * -this.bottom
-            const height = (this.viewport.worldScreenHeight / this.content.height) * innerHeight
-            start = start < 0 ? 0 : start
-            start = start > innerHeight - height ? innerHeight - height : start
-            this.scrollGraphics
-                .clear()
-                .beginFill(this.get('scrollbar-background-color'))
-                .drawRect(this._windowWidth - spacing + scrollSpace, spacing, spacing - scrollSpace * 2, innerHeight)
-                .endFill()
-                .beginFill(this.get('scrollbar-foreground-color'))
-                .drawRect(this._windowWidth - spacing + scrollSpace, spacing + start, spacing - scrollSpace * 2, height)
-                .endFill()
+            const percent = this.viewport.worldScreenHeight / this.content.height
+            if (percent < 1)
+            {
+                const innerHeight = this._windowHeight - spacing * 2
+                let start = (this.content.y / this.content.height) * -this.bottom
+                const height = percent * innerHeight
+                start = start < 0 ? 0 : start
+                start = start > innerHeight - height ? innerHeight - height : start
+                this.scrollGraphics
+                    .beginFill(this.get('scrollbar-background-color'))
+                    .drawRect(this._windowWidth - spacing + scrollSpace, spacing, spacing - scrollSpace * 2, innerHeight)
+                    .endFill()
+                    .beginFill(this.get('scrollbar-foreground-color'))
+                    .drawRect(this._windowWidth - spacing + scrollSpace, spacing + start, spacing - scrollSpace * 2, height)
+                    .endFill()
+            }
+        }
+        if (this.overflow !== 'y')
+        {
+            const percent = this.viewport.worldScreenWidth / this.content.width
+            if (percent < 1)
+            {
+                const innerWidth = this._windowWidth - spacing * 2
+                let start = (this.content.x / this.content.width) * -this.right
+                const width = percent * innerWidth
+                start = start < 0 ? 0 : start
+                start = start > innerWidth - width ? innerWidth - width : start
+                this.scrollGraphics
+                    .beginFill(this.get('scrollbar-background-color'))
+                    .drawRect(spacing, this._windowHeight - spacing + scrollSpace, innerWidth, spacing - scrollSpace * 2)
+                    .endFill()
+                    .beginFill(this.get('scrollbar-foreground-color'))
+                    .drawRect(spacing + start, this._windowHeight - spacing + scrollSpace, width, spacing - scrollSpace * 2)
+                    .endFill()
+            }
         }
     }
 
@@ -230,7 +237,7 @@ module.exports = class Window extends PIXI.Container
         {
             const size = this.get('resize-border-size')
             const local = super.toLocal(point)
-            if (pointInTriangle([local.x, local.y], [[this._windowWidth, this._windowHeight - size], [this._windowWidth, this.y + this._windowHeight], [this._windowWidth - size, this._windowHeight]]))
+            if (pointInTriangle([local.x, local.y], [[this._windowWidth, this._windowHeight - size], [this._windowWidth, this._windowHeight], [this._windowWidth - size, this._windowHeight]]))
             {
                 this.isDown = { x: point.x, y: point.y }
                 this.resizing = { width: this._windowWidth, height: this._windowHeight }
@@ -265,12 +272,12 @@ module.exports = class Window extends PIXI.Container
     {
         if (this.oldCursor !== null)
         {
-            this.cursor = this.oldCursor
+            this.changeCursor = this.oldCursor
             this.oldCursor = null
         }
-        if (this.cursor)
+        if (this.changeCursor)
         {
-            document.body.style.cursor = this.cursor
+            document.body.style.cursor = this.changeCursor
         }
         if (this.resizing && this.isDown)
         {
@@ -301,10 +308,10 @@ module.exports = class Window extends PIXI.Container
             const point = { x, y }
             const size = this.get('resize-border-size')
             const local = super.toLocal(point)
-            if (pointInTriangle([local.x, local.y], [[this._windowWidth, this._windowHeight - size], [this._windowWidth, this.y + this._windowHeight], [this._windowWidth - size, this._windowHeight]]))
+            if (pointInTriangle([local.x, local.y], [[this._windowWidth, this._windowHeight - size], [this._windowWidth, this._windowHeight], [this._windowWidth - size, this._windowHeight]]))
             {
-                this.oldCursor = this.cursor
-                this.cursor = 'se-resize'
+                this.oldCursor = this.changeCursor
+                this.changeCursor = 'se-resize'
             }
         }
     }
@@ -327,6 +334,14 @@ module.exports = class Window extends PIXI.Container
             this.isDown = false
             this.emit('drag-end')
             return true
+        }
+    }
+
+    wheel(dx, dy, dz, data)
+    {
+        if (this.viewport)
+        {
+            return this.viewport.wheel(dx, dy, dz, data)
         }
     }
 
@@ -407,13 +422,9 @@ module.exports = class Window extends PIXI.Container
         }
     }
 
-    keydown()
-    {
-    }
-
-    keyup()
-    {
-    }
+    keydown() {}
+    keyup() {}
+    wheel() {}
 
     addChild() { return this.content.addChild(...arguments) }
     addChildAt() { return this.content.addChild(...arguments) }
