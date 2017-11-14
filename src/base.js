@@ -370,7 +370,7 @@ module.exports = class Window extends PIXI.Container
     {
         if (this.fit)
         {
-            const spacing = this.get('spacing')
+            const spacing = this.get('spacing') * 2
             this._wbs = { x: 0, y: 0 }
             this.getSize()
             if (!this.noFitX)

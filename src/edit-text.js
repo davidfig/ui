@@ -243,19 +243,19 @@ module.exports = class Text extends Base
             this.words.visible = true
             this.wordsEdit.visible = false
             this.words.tint = this._color || this.get('foreground-color')
-            // switch (this.align)
-            // {
-            //     case 'middle':
-            //     case 'center':
-            //         // this.words.x = this.words.width / 2 - this.words.width / 2
-            //         break
-            //     case 'left':
-            //         this.words.x = 0
-            //         break
-            //     case 'right':
-            //         // this.words.x = this.width - this.words.width
-            //         break
-            // }
+            switch (this.align)
+            {
+                case 'middle':
+                case 'center':
+                    this.words.x = this.words.width / 2 - this.words.width / 2
+                    break
+                case 'left':
+                    this.words.x = 0
+                    break
+                case 'right':
+                    this.words.x = this.width - this.words.width
+                    break
+            }
         }
         super.layout()
     }

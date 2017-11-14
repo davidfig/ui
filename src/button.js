@@ -39,8 +39,8 @@ module.exports = class Button extends Base
 
     layout()
     {
+        super.layout()
         const item = this.label ? this.label : this.text
-
         if (this.noFitX)
         {
             if (this.align.indexOf('left') !== -1)
@@ -71,7 +71,6 @@ module.exports = class Button extends Base
                 item.y = this.center.y - item.height / 2
             }
         }
-        super.layout()
     }
 
     get select()
@@ -137,6 +136,7 @@ module.exports = class Button extends Base
         if (this.isButtonDown)
         {
             this.isButtonDown = false
+            this.drawWindowShape()
             this.emit('clicked', this)
             return true
         }

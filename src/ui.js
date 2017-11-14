@@ -32,7 +32,10 @@ module.exports = class UI extends PIXI.Container
             for (let i = parent.children.length - 1; i >= 0; i--)
             {
                 const child = parent.children[i]
-                check(child)
+                if (check(child))
+                {
+                    return true
+                }
                 if (child.types && child.windowGraphics.containsPoint(point))
                 {
                     if (child.down(x, y, data))
@@ -56,9 +59,12 @@ module.exports = class UI extends PIXI.Container
             for (let i = parent.children.length - 1; i >= 0; i--)
             {
                 const child = parent.children[i]
+                if (check(child))
+                {
+                    return true
+                }
                 if (child.types)
                 {
-                    check(child)
                     if (child.move(x, y, data))
                     {
                         return true
@@ -79,9 +85,12 @@ module.exports = class UI extends PIXI.Container
             for (let i = parent.children.length - 1; i >= 0; i--)
             {
                 const child = parent.children[i]
+                if (check(child))
+                {
+                    return true
+                }
                 if (child.types && child.windowGraphics.containsPoint(point))
                 {
-                    check(child)
                     if (child.wheel(dx, dy, dz, data))
                     {
                         return true
@@ -103,9 +112,9 @@ module.exports = class UI extends PIXI.Container
             for (let i = parent.children.length - 1; i >= 0; i--)
             {
                 const child = parent.children[i]
+                check(child)
                 if (child.types)
                 {
-                    check(child)
                     if (child.up(x, y, data))
                     {
                         return true
