@@ -246,13 +246,13 @@ module.exports = class EditText extends Window
             {
                 case 'middle':
                 case 'center':
-                    this.words.x = this.words.width / 2 - this.words.width / 2
+                    this.words.x = this.center.x - this.words.width / 2
                     break
                 case 'left':
                     this.words.x = 0
                     break
                 case 'right':
-                    this.words.x = this.width - this.words.width
+                    this.words.x = this.right - this.words.width
                     break
             }
         }
@@ -337,11 +337,11 @@ module.exports = class EditText extends Window
                             this.text = this._text.substr(0, this.cursorPlace) + letter + this._text.substr(this.cursorPlace)
                             this.cursorPlace++
                             this.layout()
-                            data.event.stopPropagation()
                         }
                     }
                 }
         }
+        return true
     }
 
     ctrl()
@@ -364,8 +364,7 @@ module.exports = class EditText extends Window
                                 this.select = [this.cursorPlace - 1]
                                 this.cursorPlace--
                                 this.layout()
-                                data.event.stopPropagation()
-                                return
+                                return true
                             }
                         }
                         else if (this.cursorPlace !== 0)
@@ -380,8 +379,7 @@ module.exports = class EditText extends Window
                             }
                             this.cursorPlace--
                             this.layout()
-                            data.event.stopPropagation()
-                            return
+                            return true
                         }
                         break
                     case 39:
@@ -392,8 +390,7 @@ module.exports = class EditText extends Window
                                 this.select = [this.cursorPlace]
                                 this.cursorPlace++
                                 this.layout()
-                                data.event.stopPropagation()
-                                return
+                                return true
                             }
                         }
                         else if (this.cursorPlace !== this._text.length)
@@ -408,8 +405,7 @@ module.exports = class EditText extends Window
                             }
                             this.cursorPlace++
                             this.layout()
-                            data.event.stopPropagation()
-                            return
+                            return true
                         }
                         break
                     default:

@@ -45,8 +45,7 @@ function dialogSetup()
     const dialog = ui.addChild(new UI.Window({ draggable: true, resizeable: true, width: 200, height: 100 }))
     dialog.position.set(10, 10)
     dialog.addChild(new UI.Stack([new UI.Button({ text: 'OK' }), new UI.Button({ text: 'Cancel' })], { horizontal: true, sameWidth: true, place: 'bottom' }))
-    dialog.addChild(new UI.EditText('edit me!', { maxCount: 10, place: 'top-center', count: 5 }))
-
+    dialog.addChild(new UI.EditText('edit me!', { maxCount: 10, count: 10, align: 'right', place: 'top-center', count: 5 }))
     dialog.theme['minimum-width'] = 200
     dialog.theme['minimum-height'] = 100
 }

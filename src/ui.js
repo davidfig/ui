@@ -44,12 +44,15 @@ module.exports = class UI extends PIXI.Container
             {
                 if (child.down(x, y, data))
                 {
-                    if (this.selected && this.selected !== child)
+                    if (this.selected !== child)
                     {
-                        this.selected.emit('lose-focus')
+                        if (this.selected)
+                        {
+                            this.selected.emit('lose-focus')
+                        }
+                        this.selected = child
+                        this.selected.emit('focus')
                     }
-                    this.selected = child
-                    this.selected.emit('focus')
                     return true
                 }
             }
