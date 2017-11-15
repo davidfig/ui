@@ -28,6 +28,7 @@ module.exports = class UI extends PIXI.Container
         this.input.on('keydown', this.keydown, this)
         this.input.on('keyup', this.keyup, this)
         this.input.on('wheel', this.wheel, this)
+        this.listeners = {}
     }
 
     checkDown(parent, point, x, y, data)
@@ -168,6 +169,13 @@ module.exports = class UI extends PIXI.Container
         {
             e.stopPropagation()
         }
+        else if (this.listeners['keydown'])
+        {
+            if (this.listeners['keydown'](code, special, e))
+            {
+                e.stopPropagation()
+            }
+        }
     }
 
     keyup(code, special, e)
@@ -199,6 +207,24 @@ module.exports = class UI extends PIXI.Container
         {
             e.stopPropagation()
         }
+        else if (this.listeners['keyup'])
+        {
+            if (this.listeners['keyup'](code, special, e))
+            {
+                e.stopPropagation()
+            }
+        }
+    }
+
+    /**
+     *
+     * @param {string} type
+     * @param {function} callback
+     * @param {object} context
+     */
+    addListener(type, callback)
+    {
+        this.listeners[type] = callback
     }
 
     update(elapsed)
