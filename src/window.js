@@ -20,7 +20,7 @@ module.exports = class Window extends PIXI.Container
      * @param {number} [options.fitY]
      * @param {boolean} [options.noOversizeX] don't allow horizontal resizing beyond the size of the content
      * @param {boolean} [options.noOversizeY] don't allow vertical resizing beyond the size of the content
-     * @param {boolean|string} [options.overflow=true] true, x, or y
+     * @param {boolean|string} [options.overflow=false] true, x, or y
      * @param {object} [options.theme]
      * @param {string} [options.place] combination of top/center/bottom and left/center/bottom
      */

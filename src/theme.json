@@ -1,7 +1,7 @@
 {
     "Window": {
         "font-family": "consolas",
-        "font-size": "2em",
+        "font-size": "1.75em",
         "corners": 10,
         "background-color": "#dddddd",
         "foreground-color": 0,
@@ -50,5 +50,11 @@
         "minimum-width": 0,
         "minimum-height": 0,
         "spacing": 0
+    },
+    "Tree": {
+        "between": 4,
+        "background-color": "#ffffff",
+        "background-select-color": "#ddddff",
+        "indent": 10
     }
 }

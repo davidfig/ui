@@ -15,6 +15,7 @@ function test()
     dialogSetup()
     scrollSetup()
     listSetup()
+    treeSetup()
 
     renderer.interval(update)
     renderer.start()
@@ -61,6 +62,34 @@ function listSetup()
     list.layout()
     window.layout()
     window.position.set(10, 130)
+}
+
+function treeSetup()
+{
+    const tree = ui.addChild(new UI.Tree({ draggable: true, resizeable: true, width: 250, height: 400, transparent: false }))
+    tree.position.set(220, 320)
+    for (let i = 0; i < 5; i++)
+    {
+        const folder = tree.addFolder(null, { name: 'folder-' + i }, true)
+        let n = Random.get(10)
+        for (let j = 0; j < n; j++)
+        {
+            if (Random.chance(0.2))
+            {
+                const level2 = tree.addFolder(folder, { name: 'level-2-folder-' + i })
+                const n2 = Random.get(10)
+                for (let k = 0; k < n2; k++)
+                {
+                    tree.addEntry(level2, { name: 'level-2-entry-' + k}, true)
+                }
+            }
+            else
+            {
+                tree.addEntry(folder, { name: 'entry-' + j }, true)
+            }
+        }
+    }
+    tree.layout()
 }
 
 function update()

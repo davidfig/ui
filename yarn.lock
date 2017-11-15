@@ -64,16 +64,16 @@ pixi-gl-core@^1.0.3:
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/pixi-gl-core/-/pixi-gl-core-1.1.2.tgz#b5377f69bc3b3187b9a62430de031fde343e5439"
 
-pixi-viewport@^0.19.0:
-  version "0.19.0"
-  resolved "https://registry.yarnpkg.com/pixi-viewport/-/pixi-viewport-0.19.0.tgz#d88c9e1fc16dd80780e30f68924f3666faa00fa4"
+pixi-viewport@^0.20.7:
+  version "0.20.7"
+  resolved "https://registry.yarnpkg.com/pixi-viewport/-/pixi-viewport-0.20.7.tgz#6fcc38f82a74df9dcd6fb7a2489c0e17530f2492"
   dependencies:
     exists "^1.0.1"
     pixi-ease "^0.13.3"
-    yy-input "^0.10.0"
+    yy-input "^0.10.3"
     yy-loop "^0.3.5"
 
-pixi.js@^4.6.0:
+pixi.js@^4.5.6, pixi.js@^4.6.0:
   version "4.6.0"
   resolved "https://registry.yarnpkg.com/pixi.js/-/pixi.js-4.6.0.tgz#dca9a1c15ad6447a5913b969a0164b89a3d1b888"
   dependencies:
@@ -113,7 +113,7 @@ yy-angle@^1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/yy-angle/-/yy-angle-1.2.0.tgz#1d18f5e0229ed3cf437b28d84ca693b1e7304d17"
 
-yy-color@^1.0.0:
+yy-color@^1.0.0, yy-color@^1.0.7:
   version "1.0.7"
   resolved "https://registry.yarnpkg.com/yy-color/-/yy-color-1.0.7.tgz#3f923188243fabccea24d372f4b8b6e3093c65a9"
   dependencies:
@@ -130,9 +130,9 @@ yy-fps@^0.5.2:
     tinycolor2 "^1.4.1"
     yy-counter "^2.1.0"
 
-yy-input@^0.10.0:
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/yy-input/-/yy-input-0.10.0.tgz#0ee9f74058e444112207ed8129860920386af7b6"
+yy-input@^0.10.3:
+  version "0.10.4"
+  resolved "https://registry.yarnpkg.com/yy-input/-/yy-input-0.10.4.tgz#4690297aeec54808b723c5617f75d499fb939278"
   dependencies:
     eventemitter3 "^2.0.3"
 
@@ -142,7 +142,16 @@ yy-loop@^0.3.1, yy-loop@^0.3.5:
   dependencies:
     eventemitter3 "^2.0.3"
 
-yy-random@^1.0.1, yy-random@^1.6.0:
+yy-pixel@^1.1.4:
+  version "1.1.4"
+  resolved "https://registry.yarnpkg.com/yy-pixel/-/yy-pixel-1.1.4.tgz#d1f62e77fe13cef32e13ee6c6787bd4c1c935808"
+  dependencies:
+    pixi-ease "^0.13.3"
+    pixi.js "^4.5.6"
+    yy-color "^1.0.7"
+    yy-random "^1.2.0"
+
+yy-random@^1.0.1, yy-random@^1.2.0, yy-random@^1.6.0:
   version "1.6.0"
   resolved "https://registry.yarnpkg.com/yy-random/-/yy-random-1.6.0.tgz#6e1a1cefb8530cdf51314bd64730baf341338fc8"
   dependencies:
@@ -156,3 +165,9 @@ yy-renderer@^2.5.0:
     pixi.js "^4.6.0"
     yy-fps "^0.5.2"
     yy-loop "^0.3.5"
+
+yy-rendersheet@^3.2.3:
+  version "3.2.3"
+  resolved "https://registry.yarnpkg.com/yy-rendersheet/-/yy-rendersheet-3.2.3.tgz#8f91b39ae69b4dfc2c32b9afaedda5eb5e3f0981"
+  dependencies:
+    pixi.js "^4.5.6"
