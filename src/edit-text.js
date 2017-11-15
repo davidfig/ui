@@ -8,7 +8,7 @@ const CURSOR_WIDTH = 3
 
 const STOP_AT_CHARS = ',.!@#$%^&*()/?<>-+_= '
 
-module.exports = class Text extends Window
+module.exports = class EditText extends Window
 {
     /**
      *
@@ -42,8 +42,7 @@ module.exports = class Text extends Window
         this.max = options.max
         this.words = this.addChild(new PIXI.Text(text))
         this.wordsEdit = this.addChild(new PIXI.Container())
-        this.interactive = true
-        this.on('click', this.startEdit, this)
+        this.on('lose-focus', this.loseFocus, this)
         this.layout()
     }
 
@@ -260,7 +259,7 @@ module.exports = class Text extends Window
         super.layout()
     }
 
-    startEdit(x, y)
+    down(x, y)
     {
         if (!this.editing)
         {
@@ -274,6 +273,7 @@ module.exports = class Text extends Window
             }
             this.cursorPlace = this._text.length
             this.layout()
+            return true
         }
         else
         {
@@ -286,9 +286,10 @@ module.exports = class Text extends Window
                     const local = letter.toLocal(point)
                     this.cursorPlace = letter.index + (local.x > letter.width / 2 ? 1 : 0)
                     this.layout()
-                    return
+                    return true
                 }
             }
+            return true
         }
     }
 
@@ -347,7 +348,7 @@ module.exports = class Text extends Window
     {
     }
 
-    keyDown(code, special, data)
+    keydown(code, special, data)
     {
         if (this.editing)
         {
@@ -564,17 +565,13 @@ module.exports = class Text extends Window
         }
     }
 
-    down(x, y)
+    loseFocus()
     {
         if (this.editing)
         {
-            const point = new PIXI.Point(x, y)
-            if (!this.words.containsPoint(point))
-            {
-                this.editing = false
-                this.emit('changed', this)
-                this.layout()
-            }
+            this.editing = false
+            this.emit('changed', this)
+            this.layout()
         }
     }
 }

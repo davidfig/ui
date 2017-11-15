@@ -30,28 +30,34 @@ module.exports = class UI extends PIXI.Container
         this.input.on('wheel', this.wheel, this)
     }
 
-    down(x, y, data)
+    checkDown(parent, point, x, y, data)
     {
-        function check(parent)
+        for (let i = parent.children.length - 1; i >= 0; i--)
         {
-            for (let i = parent.children.length - 1; i >= 0; i--)
+            const child = parent.children[i]
+            if (this.checkDown(child, point, x, y, data))
             {
-                const child = parent.children[i]
-                if (check(child))
+                return true
+            }
+            if (child.types && child.windowGraphics.containsPoint(point))
+            {
+                if (child.down(x, y, data))
                 {
-                    return true
-                }
-                if (child.types && child.windowGraphics.containsPoint(point))
-                {
-                    if (child.down(x, y, data))
+                    if (this.selected && this.selected !== child)
                     {
-                        return true
+                        this.selected.emit('lose-focus')
                     }
+                    this.selected = child
+                    this.selected.emit('focus')
+                    return true
                 }
             }
         }
-        const point = { x, y }
-        if (check(this))
+    }
+
+    down(x, y, data)
+    {
+        if (this.checkDown(this, { x, y }, x, y, data))
         {
             data.event.stopPropagation()
         }
@@ -150,6 +156,14 @@ module.exports = class UI extends PIXI.Container
                 }
             }
         }
+        if (this.selected)
+        {
+            if (this.selected.keydown(code, special, e))
+            {
+                e.stopPropagation()
+                return
+            }
+        }
         if (check(this))
         {
             e.stopPropagation()
@@ -173,6 +187,14 @@ module.exports = class UI extends PIXI.Container
                 }
             }
         }
+        if (this.selected)
+        {
+            if (this.selected.keyup(code, special, e))
+            {
+                e.stopPropagation()
+                return
+            }
+        }
         if (check(this))
         {
             e.stopPropagation()
@@ -181,7 +203,6 @@ module.exports = class UI extends PIXI.Container
 
     update(elapsed)
     {
-        this.editing = false
         let dirty
         const queue = [...this.children]
         let i = 0
@@ -190,10 +211,6 @@ module.exports = class UI extends PIXI.Container
             const w = queue[i]
             if (w.types)
             {
-                if (w.editing)
-                {
-                    this.editing = true
-                }
                 w.update(elapsed)
                 if (w.dirty)
                 {
