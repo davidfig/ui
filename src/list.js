@@ -59,8 +59,8 @@ module.exports = class List extends Window
             y += w.height + between
         }
         this._windowHeight = y - between + spacing * 2
-        super.layout()
         this.showSelected()
+        super.layout()
     }
 
     showSelected()

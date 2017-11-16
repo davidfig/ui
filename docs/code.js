@@ -66,30 +66,31 @@ function listSetup()
 
 function treeSetup()
 {
-    const tree = ui.addChild(new UI.Tree({ draggable: true, resizeable: true, width: 250, height: 400, transparent: false }))
-    tree.position.set(220, 320)
+    const window = ui.addChild(new UI.Window({ draggable: true, resizeable: true, overflow: true, width: 250, height: 400 }))
+    const tree = window.addChild(new UI.Tree({ fit: true }))
+    window.position.set(220, 320)
     for (let i = 0; i < 5; i++)
     {
-        const folder = tree.addFolder(null, { name: 'folder-' + i }, true)
+        const folder = tree.addFolder(null, { name: 'folder-' + i, noLayout: true })
         let n = Random.get(10)
         for (let j = 0; j < n; j++)
         {
             if (Random.chance(0.2))
             {
-                const level2 = tree.addFolder(folder, { name: 'level-2-folder-' + i })
+                const level2 = tree.addFolder(folder, { name: 'level-2-folder-' + i, noLayout: true })
                 const n2 = Random.get(10)
                 for (let k = 0; k < n2; k++)
                 {
-                    tree.addEntry(level2, { name: 'level-2-entry-' + k}, true)
+                    tree.addEntry(level2, { name: 'level-2-entry-' + k, noLayout: true})
                 }
             }
             else
             {
-                tree.addEntry(folder, { name: 'entry-' + j }, true)
+                tree.addEntry(folder, { name: 'entry-' + j, noLayout: true })
             }
         }
     }
-    tree.layout()
+    window.layout()
 }
 
 function update()

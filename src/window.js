@@ -432,6 +432,13 @@ module.exports = class Window extends PIXI.Container
                 }
             }
         }
+        for (let w of this.content.children)
+        {
+            if (w.types)
+            {
+                w.layout()
+            }
+        }
         if (this.overflow)
         {
             if (this.content.width > this._windowWidth - spacing || this.content.height > this._windowHeight - spacing)
@@ -455,13 +462,6 @@ module.exports = class Window extends PIXI.Container
             this.content.position.set(0)
         }
         this.drawWindowShape()
-        for (let w of this.content.children)
-        {
-            if (w.types)
-            {
-                w.layout()
-            }
-        }
     }
 
     fontStyle()

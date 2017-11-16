@@ -10,20 +10,30 @@ module.exports = class Tree extends UI.Window
 {
     /**
      * @param {object} [options]
+     * @param {boolean} [options.entryMove]
+     * @param {boolean} [options.noFolderSelection]
+     * @param {boolean} [options.noEntrySelection]
+     * @emit select (item, List)
+     * @emit unselect (item, List)
      */
     constructor(options)
     {
         options = options || {}
-        options.transparent = exists(options.transparent) ? options.transparent : true
+        options.transparent = exists(options.transparent) ? options.transparent : false
         options.overflow = exists(options.overflow) ? options.overflow : true
         super(options)
         this.types.push('Tree')
         this.root = { type: 'folder', children: [] }
+        this.noFolderSelection = options.noFolderSelection
+        this.noEntrySelection = options.noEntrySelection
         this.sheet = new RenderSheet({ scaleMode: PIXI.SCALE_MODES.NEAREST })
         Pixel.add(FOLDER, this.sheet)
         this.sheet.render()
         this.folderTexture = this.sheet.getTexture('folder-0')
         this.folderOpenTexture = this.sheet.getTexture('folder-1')
+        this.selectGraphics = this.addChild(new PIXI.Sprite(PIXI.Texture.WHITE))
+        this.selectGraphics.tint = this.get('background-select-color')
+        this.selectGraphics.visible = false
         this.folders = []
         this.entries = []
     }
@@ -43,6 +53,11 @@ module.exports = class Tree extends UI.Window
         const folder = options || {}
         folder.type = 'folder'
         folder.children = []
+        folder.icon = new PIXI.Sprite(this.folderOpenTexture)
+        folder.text = new UI.Text(options.name, { theme: { spacing: 0 } })
+        folder.icon.width = folder.icon.height = folder.text.label.height
+        folder.stack = this.addChild(new UI.Stack([folder.icon, folder.text], { horizontal: true }))
+        this.folders.push(folder)
         if (exists(options.index))
         {
             parent.children.splice(options.index, 0, folder)
@@ -55,6 +70,7 @@ module.exports = class Tree extends UI.Window
         {
             this.layout()
         }
+        this.folders.push(folder)
         return folder
     }
 
@@ -71,6 +87,7 @@ module.exports = class Tree extends UI.Window
         parent = parent || this.root
         const entry = options || {}
         entry.type = 'entry'
+        entry.text = this.addChild(new UI.Text(options.name, { theme: { spacing: 0 } }))
         if (exists(options.index))
         {
             parent.children.splice(options.index, 0, entry)
@@ -83,6 +100,7 @@ module.exports = class Tree extends UI.Window
         {
             this.layout()
         }
+        this.entries.push(entry)
         return entry
     }
 
@@ -98,42 +116,75 @@ module.exports = class Tree extends UI.Window
         }
     }
 
-    drawFolder(data)
+    drawFolder(folder)
     {
-        const icon = new PIXI.Sprite(data.collapsed ? this.folderTexture : this.folderOpenTexture)
-        const text = new UI.Text(data.name, { theme: { spacing: 0 }})
-        icon.width = icon.height = text.label.height
-        const stack = this.content.addChild(new UI.Stack([icon, text], { horizontal: true }))
-        this.folders.push({ stack, data })
-        stack.position.set(this.currentIndent, this.current)
-        this.current += stack.height + this.get('between')
-        if (!data.collapsed)
+        if (this.isVisible)
         {
-            const indent = this.get('indent')
-            this.currentIndent += indent
-            for (let child of data.children)
+            folder.stack.visible = true
+            folder.stack.position.set(this.currentIndent, this.current)
+            if (this.selected && this.selected === folder)
+            {
+                this.selectGraphics.position.set(this.currentIndent + folder.icon.width, this.current)
+                this.selectGraphics.width = folder.text.width
+                this.selectGraphics.height = folder.text.height
+                this.selectGraphics.visible = true
+            }
+            this.current += folder.stack.height + this.get('between')
+            if (folder.collapsed)
+            {
+                this.isVisible = false
+            }
+            else
+            {
+                this.currentIndent += this.get('indent')
+            }
+            for (let child of folder.children)
             {
                 this.draw(child)
             }
-            this.currentIndent -= indent
+            if (!folder.collapsed)
+            {
+                this.currentIndent -= this.get('indent')
+            }
+            this.isVisible = true
+        }
+        else
+        {
+            folder.stack.visible = false
+            for (let child of folder.children)
+            {
+                this.draw(child)
+            }
         }
     }
 
-    drawEntry(data)
+    drawEntry(entry)
     {
-        const text = this.content.addChild(new UI.Text(data.name, { theme: { spacing: 0 } }))
-        text.position.set(this.currentIndent, this.current)
-        this.current += text.height + this.get('between')
-        this.entries.push({ text, data })
+        if (this.isVisible)
+        {
+            entry.text.visible = true
+            entry.text.position.set(this.currentIndent, this.current)
+            if (this.selected && this.selected === entry)
+            {
+                this.selectGraphics.position.set(this.currentIndent, this.current)
+                this.selectGraphics.width = entry.text.width
+                this.selectGraphics.height = entry.text.height
+                this.selectGraphics.visible = true
+            }
+            this.current += entry.text.height + this.get('between')
+        }
+        else
+        {
+            entry.text.visible = false
+        }
     }
 
     layout()
     {
-        this.folders = []
-        this.entries = []
-        this.removeChildren()
+        this.selectGraphics.visible = false
         this.current = 0
         this.currentIndent = 0
+        this.isVisible = true
         for (let child of this.root.children)
         {
             this.draw(child)
@@ -148,9 +199,43 @@ module.exports = class Tree extends UI.Window
         {
             if (folder.stack.items[0].containsPoint(point))
             {
-                folder.data.collapsed = !folder.data.collapsed
+                folder.collapsed = !folder.collapsed
                 this.layout()
                 return true
+            }
+            else if (!this.noFolderSelection && folder.stack.items[1].containsPoint(point))
+            {
+                if (this.selected !== folder)
+                {
+                    if (this.selected)
+                    {
+                        this.emit('unselect', this.selected)
+                    }
+                    this.selected = folder
+                    this.emit('select', this.selected)
+                    this.layout()
+                }
+                return true
+            }
+        }
+                if (!this.noEntrySelection)
+        {
+            for (let entry of this.entries)
+            {
+                if (entry.text.containsPoint(point))
+                {
+                    if (this.selected !== entry)
+                    {
+                        if (this.selected)
+                        {
+                            this.emit('unselect', this.selected)
+                        }
+                        this.selected = entry
+                        this.emit('select', this.selected)
+                        this.layout()
+                    }
+                    return true
+                }
             }
         }
     }
