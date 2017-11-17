@@ -54,7 +54,6 @@
     "Tree": {
         "between": 4,
         "background-color": "#ffffff",
-        "background-select-color": "#ddddff",
-        "indent": 10
+        "background-select-color": "#ddddff"
     }
 }

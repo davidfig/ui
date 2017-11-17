@@ -10,6 +10,9 @@ module.exports = class UI extends PIXI.Container
      * @param {object} [options]
      * @param {object} [options.theme]
      * @param {object} [options.div]
+     * @param {(number|string)} [options.background=transparent] fill in the background with this color
+     * @param {number} [options.width=window.innerWidth] width of UI
+     * @param {number} [options.height = window.innerHeight] height of UI
      * @param {boolean} [options.preventDefault=true] prevent default on input events
      * @param {boolean} [options.chromeDebug=true] allow ctrl-r to refresh page and ctrl-shift-i to open debug window
      */
@@ -21,6 +24,12 @@ module.exports = class UI extends PIXI.Container
         this.theme = options.theme || THEME
         const preventDefault = exists(options.preventDefault) ? options.preventDefault : true
         const chromeDebug = exists(options.chromeDebug) ? options.chromeDebug : true
+        if (options.background)
+        {
+            this.bg = this.addChild(new PIXI.Sprite(PIXI.Texture.WHITE))
+            this.bg.tint = options.background
+        }
+        this.resize(options.width, options.height)
         this.input = new Input({ preventDefault, chromeDebug })
         this.input.on('down', this.down, this)
         this.input.on('move', this.move, this)
@@ -29,6 +38,23 @@ module.exports = class UI extends PIXI.Container
         this.input.on('keyup', this.keyup, this)
         this.input.on('wheel', this.wheel, this)
         this.listeners = {}
+
+    }
+
+    /**
+     *
+     * @param {number} [width=window.innerWidth] of the screen
+     * @param {number} [height=window.innerHeight
+     */
+    resize(width, height)
+    {
+        this.w = exists(width) ? width : window.innerWidth
+        this.h = exists(height) ? height : window.innerHeight
+        if (this.bg)
+        {
+            this.bg.width = this.w
+            this.bg.height = this.h
+        }
     }
 
     checkDown(parent, point, x, y, data)
@@ -48,9 +74,11 @@ module.exports = class UI extends PIXI.Container
                     {
                         if (this.selected)
                         {
+                            this.selected.focused = false
                             this.selected.emit('lose-focus')
                         }
                         this.selected = child
+                        this.selected.focused = true
                         this.selected.emit('focus')
                     }
                     return true
@@ -150,17 +178,18 @@ module.exports = class UI extends PIXI.Container
             for (let i = parent.children.length - 1; i >= 0; i--)
             {
                 const child = parent.children[i]
+                check(child)
                 if (child.types)
                 {
-                    check(child)
-                    if (child.keydown(code, special, e))
+                    if (child !== selected && child.keydown(code, special, e))
                     {
                         return true
                     }
                 }
             }
         }
-        if (this.selected)
+        const selected = this.selected
+        if (selected)
         {
             if (this.selected.keydown(code, special, e))
             {
@@ -188,19 +217,20 @@ module.exports = class UI extends PIXI.Container
             for (let i = parent.children.length - 1; i >= 0; i--)
             {
                 const child = parent.children[i]
+                check(child)
                 if (child.types)
                 {
-                    check(child)
-                    if (child.keyup(code, special, e))
+                    if (child !== selected && child.keyup(code, special, e))
                     {
                         return true
                     }
                 }
             }
         }
-        if (this.selected)
+        const selected = this.selected
+        if (selected)
         {
-            if (this.selected.keyup(code, special, e))
+            if (selected.keyup(code, special, e))
             {
                 e.stopPropagation()
                 return

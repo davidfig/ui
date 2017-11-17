@@ -502,6 +502,24 @@ module.exports = class Window extends PIXI.Container
         return this.windowGraphics.containsPoint(point)
     }
 
+    isFocused()
+    {
+        if (this.focused)
+        {
+            return true
+        }
+        for (let child of this.content.children)
+        {
+            if (child.types)
+            {
+                if (child.isFocused())
+                {
+                    return true
+                }
+            }
+        }
+    }
+
     keydown() {}
     keyup() {}
 
