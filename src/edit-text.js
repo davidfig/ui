@@ -382,6 +382,7 @@ module.exports = class EditText extends Window
                             return true
                         }
                         break
+
                     case 39:
                         if (!this.select.length)
                         {
@@ -390,8 +391,8 @@ module.exports = class EditText extends Window
                                 this.select = [this.cursorPlace]
                                 this.cursorPlace++
                                 this.layout()
-                                return true
                             }
+                            return true
                         }
                         else if (this.cursorPlace !== this._text.length)
                         {
@@ -407,9 +408,8 @@ module.exports = class EditText extends Window
                             this.layout()
                             return true
                         }
-                        break
                     default:
-                        this.addLetter(code, true, data)
+                        return this.addLetter(code, true, data)
                 }
             }
             else if (special.ctrl)
@@ -423,8 +423,7 @@ module.exports = class EditText extends Window
                             this.text = this._text.slice(0, this.select[0]) + this._text.slice(this.select[this.select.length - 1] + 1)
                             this.select = []
                             this.layout()
-                            data.event.stopPropagation()
-                            return
+                            return true
                         }
                         else
                         {
@@ -441,10 +440,9 @@ module.exports = class EditText extends Window
                             this.text = '' + this._text.slice(0, start) + this._text.slice(end)
                             this.layout()
                             this.cursorPlace = start
-                            data.event.stopPropagation()
-                            return
+                            return true
                         }
-                        break
+
                     case 67: // ctrl-c
                         let copy = ''
                         if (this.select.length)
@@ -459,7 +457,7 @@ module.exports = class EditText extends Window
                             copy = this._text
                         }
                         clipboard(copy)
-                        break
+                        return true
 
                     case 88: // ctrl-x
                         let cut = ''
@@ -482,8 +480,7 @@ module.exports = class EditText extends Window
                             this.select = []
                             this.layout()
                         }
-                        data.event.stopPropagation()
-                        break
+                        return true
                 }
             }
             else
@@ -497,8 +494,7 @@ module.exports = class EditText extends Window
                             this.text = this._text.slice(0, this.select[0]) + this._text.slice(this.select[this.select.length - 1] + 1)
                             this.select = []
                             this.layout()
-                            data.event.stopPropagation()
-                            return
+                            return true
                         }
                         else
                         {
@@ -506,11 +502,9 @@ module.exports = class EditText extends Window
                             {
                                 this.text = this._text.slice(0, this.cursorPlace - 1) + this._text.slice(this.cursorPlace)
                                 this.layout()
-                                data.event.stopPropagation()
-                                return
+                                return true
                             }
                         }
-                        break
 
                     case 37: // left arrow
                         if (this.select.length)
@@ -523,8 +517,7 @@ module.exports = class EditText extends Window
                             this.cursorPlace = this.cursorPlace < 0 ? 0 : this.cursorPlace
                         }
                         this.layout()
-                        data.event.stopPropagation()
-                        break
+                        return true
 
                     case 39: // right arrow
                         if (this.select.length)
@@ -537,25 +530,22 @@ module.exports = class EditText extends Window
                             this.cursorPlace = this.cursorPlace > this._text.length ? this._text.length : this.cursorPlace
                         }
                         this.layout()
-                        data.event.stopPropagation()
-                        break
+                        return true
 
                     case 13:
                         this.editing = false
                         this.emit('changed', this)
                         this.layout()
-                        data.event.stopPropagation()
-                        break
+                        return true
 
                     case 27:
                         this.editing = false
                         this.words.text = this.original
                         this.layout()
-                        data.event.stopPropagation()
-                        break
+                        return true
 
                     default:
-                        this.addLetter(code, false, data)
+                        return this.addLetter(code, false, data)
                 }
             }
         }

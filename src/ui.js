@@ -92,6 +92,7 @@ module.exports = class UI extends PIXI.Container
         if (this.checkDown(this, { x, y }, x, y, data))
         {
             data.event.stopPropagation()
+            return true
         }
     }
 
@@ -118,6 +119,7 @@ module.exports = class UI extends PIXI.Container
         if (check(this))
         {
             data.event.stopPropagation()
+            return true
         }
     }
 
@@ -145,6 +147,7 @@ module.exports = class UI extends PIXI.Container
         if (check(this))
         {
             data.event.stopPropagation()
+            return true
         }
     }
 
@@ -167,7 +170,7 @@ module.exports = class UI extends PIXI.Container
         }
         if (check(this))
         {
-            data.event.stopPropagation()
+            return true
         }
     }
 
@@ -193,19 +196,18 @@ module.exports = class UI extends PIXI.Container
         {
             if (this.selected.keydown(code, special, e))
             {
-                e.stopPropagation()
-                return
+                return true
             }
         }
         if (check(this))
         {
-            e.stopPropagation()
+            return true
         }
         else if (this.listeners['keydown'])
         {
             if (this.listeners['keydown'](code, special, e))
             {
-                e.stopPropagation()
+                return true
             }
         }
     }
