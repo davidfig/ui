@@ -32,7 +32,7 @@ module.exports = class EditText extends Window
         super(options)
         this.fit = exists(options.fit) ? options.fit : true
         this.types.push('Text', 'EditText')
-        this._text = text
+        this._text = '' + text
         this._align = options.align
         this._maxCount = options.maxCount
         this._count = options.count
@@ -130,6 +130,7 @@ module.exports = class EditText extends Window
 
     layout()
     {
+        this.textCursor = null
         this.words.style.fontFamily = this.get('font-family')
         this.words.style.fontSize = this.get('font-size')
         let text = ''
@@ -226,8 +227,7 @@ module.exports = class EditText extends Window
             if (!this.select.length)
             {
                 this.textCursor = this.wordsEdit.addChild(new PIXI.Sprite(PIXI.Texture.WHITE))
-                this.textCursor.height = this.lastHeight || this.wordsEdit.height
-                this.lastHeight = !this.lastHeight || this.textCursor.height > this.lastHeight ? this.textCursor.height : this.lastHeight
+                this.textCursor.height = this.wordsEdit.height
                 this.textCursor.width = CURSOR_WIDTH
                 this.textCursor.tint = this.get('edit-foreground-color')
                 this.textCursor.x = cursorStart
@@ -257,6 +257,14 @@ module.exports = class EditText extends Window
             }
         }
         super.layout()
+        this.wordsEdit.x = 0
+        if (this.textCursor)
+        {
+            if (this.textCursor.x + this.textCursor.width > this.right)
+            {
+                this.wordsEdit.x = this.right - this.textCursor.x - this.textCursor.width
+            }
+        }
     }
 
     down(x, y)

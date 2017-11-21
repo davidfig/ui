@@ -227,6 +227,7 @@ module.exports = class Window extends PIXI.Container
     down(x, y, data)
     {
         const point = { x, y }
+        this.parent.addChild(this)
         if (this.resizeable)
         {
             const size = this.get('resize-border-size')
@@ -235,7 +236,6 @@ module.exports = class Window extends PIXI.Container
             {
                 this.isDown = { x: point.x, y: point.y }
                 this.resizing = { width: this._windowWidth, height: this._windowHeight }
-                this.parent.addChild(this)
                 return true
             }
         }
@@ -255,11 +255,8 @@ module.exports = class Window extends PIXI.Container
         if (this.draggable)
         {
             this.isDown = { x: this.x - point.x, y: this.y - point.y }
-            this.parent.addChild(this)
             return true
         }
-
-        this.parent.addChild(this)
     }
 
     move(x, y, data)

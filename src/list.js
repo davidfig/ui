@@ -42,6 +42,16 @@ module.exports = class List extends Window
         }
     }
 
+    clear(noLayout)
+    {
+        this.items = []
+        this.content.removeChildren()
+        if (!noLayout)
+        {
+            this.layout()
+        }
+    }
+
     layout()
     {
         const between = this.get('between')

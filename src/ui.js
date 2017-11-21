@@ -57,41 +57,47 @@ module.exports = class UI extends PIXI.Container
         }
     }
 
-    checkDown(parent, point, x, y, data)
+    down(x, y, data)
     {
-        for (let i = parent.children.length - 1; i >= 0; i--)
+        function check(parent)
         {
-            const child = parent.children[i]
-            if (this.checkDown(child, point, x, y, data))
+            for (let i = parent.children.length - 1; i >= 0; i--)
             {
-                return true
-            }
-            if (child.types && child.windowGraphics.containsPoint(point))
-            {
-                if (child.down(x, y, data))
+                const child = parent.children[i]
+                if (check(child))
                 {
-                    if (this.selected !== child)
-                    {
-                        if (this.selected)
-                        {
-                            this.selected.focused = false
-                            this.selected.emit('lose-focus')
-                        }
-                        this.selected = child
-                        this.selected.focused = true
-                        this.selected.emit('focus')
-                    }
                     return true
+                }
+                if (child.types && child.windowGraphics.containsPoint(point))
+                {
+                    if (child.down(x, y, data))
+                    {
+                        if (selected)
+                        {
+                            selected.focused = false
+                            selected.emit('lose-focus')
+                        }
+                        that.selected = child
+                        that.selected.focused = true
+                        that.selected.emit('focus')
+                        return true
+                    }
                 }
             }
         }
-    }
 
-    down(x, y, data)
-    {
-        if (this.checkDown(this, { x, y }, x, y, data))
+        const point = { x, y }
+        const selected = this.selected
+        const that = this
+        // if (selected)
+        // {
+        //     if (selected.windowGraphics.containsPoint(point) && selected.down(x, y, data))
+        //     {
+        //         return true
+        //     }
+        // }
+        if (check(this))
         {
-            data.event.stopPropagation()
             return true
         }
     }
