@@ -71,6 +71,14 @@ module.exports = class Button extends Window
                 item.y = this.center.y - item.height / 2
             }
         }
+        if (this.label)
+        {
+            this.label.alpha = this.disabled ? this.get('disabled-alpha') : 1
+        }
+        if (this.sprite)
+        {
+            this.sprite.alpha = this.disabled ? this.get('disabled-alpha') : 1
+        }
     }
 
     get select()
@@ -93,6 +101,19 @@ module.exports = class Button extends Window
         this.dirty = true
     }
 
+    get disabled()
+    {
+        return this._disabled
+    }
+    set disabled(value)
+    {
+        if (value !== this._disabled)
+        {
+            this._disabled = value
+            this.layout()
+        }
+    }
+
     drawWindowShape()
     {
         super.drawWindowShape()
@@ -110,10 +131,13 @@ module.exports = class Button extends Window
     down()
     {
         super.down(...arguments)
-        this.isButtonDown = true
-        this.drawWindowShape()
-        this.emit('pressed', this)
-        return true
+        if (!this.disabled)
+        {
+            this.isButtonDown = true
+            this.drawWindowShape()
+            this.emit('pressed', this)
+            return true
+        }
     }
 
     move(x, y)

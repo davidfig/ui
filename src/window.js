@@ -37,6 +37,7 @@ module.exports = class Window extends PIXI.Container
         const mask = this.contentContainer.addChild(new PIXI.Graphics())
         this.contentContainer.mask = mask
         this.content = this.contentContainer.addChild(new PIXI.Container())
+        this.special = super.addChild(new PIXI.Container())
         this.resizeable = options.resizeable
         this.clickable = options.clickable
         this.theme = options.theme || {}

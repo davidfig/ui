@@ -23,7 +23,8 @@
     "Button": {
         "foreground-color": 0,
         "background-color": "#f9f9f9",
-        "background-select-color": "#c9c9c9"
+        "background-select-color": "#c9c9c9",
+        "disabled-alpha": 0.5
     },
     "Text": {
         "corners": 0
