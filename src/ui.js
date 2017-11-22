@@ -72,7 +72,7 @@ module.exports = class UI extends PIXI.Container
                 {
                     if (child.down(x, y, data))
                     {
-                        if (selected)
+                        if (selected && selected !== child)
                         {
                             selected.focused = false
                             selected.emit('lose-focus')
