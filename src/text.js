@@ -24,6 +24,12 @@ module.exports = class Text extends Window
         this.label = this.content.addChild(new PIXI.Text(text, style))
     }
 
+    layout()
+    {
+        this.label.style.fill = this.get('foreground-color')
+        super.layout()
+    }
+
     containsPoint(point)
     {
         return this.label.containsPoint(point)

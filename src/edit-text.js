@@ -255,7 +255,7 @@ module.exports = class EditText extends Window
         {
             this.words.visible = true
             this.wordsEdit.visible = false
-            this.words.tint = this.disabled ? this.get('foreground-disabled-color') : this.get('foreground-color')
+            this.words.style.fill = this.disabled ? this.get('foreground-disabled-color') : this.get('foreground-color')
             switch (this.align)
             {
                 case 'middle':
