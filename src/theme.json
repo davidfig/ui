@@ -33,7 +33,8 @@
         "edit-foreground-color": "#ffffff",
         "edit-background-color": "#888888",
         "edit-foreground-select-color": "#ffffff",
-        "edit-background-select-color": "#000000"
+        "edit-background-select-color": "#000000",
+        "foreground-disabled-color": "#bbbbbb"
     },
     "Stack": {
         "between": 5,

@@ -128,11 +128,25 @@ module.exports = class EditText extends Window
         return this._cursorPlace
     }
 
+    get disabled()
+    {
+        return this._disabled
+    }
+    set disabled(value)
+    {
+        if (this._disabled !== value)
+        {
+            this._disabled = value
+            this.layout()
+        }
+    }
+
     layout()
     {
         this.textCursor = null
         this.words.style.fontFamily = this.get('font-family')
         this.words.style.fontSize = this.get('font-size')
+        this.words.style.fill = 'white'
         let text = ''
         if (this.count && this._text.length < this.count)
         {
@@ -176,7 +190,7 @@ module.exports = class EditText extends Window
             fontSize: this.words.style.fontSize,
         }
         let cursorStart = 0
-        if (this.editing)
+        if (this.editing && !this.disabled)
         {
             this.words.visible = false
             this.wordsEdit.visible = true
@@ -241,7 +255,7 @@ module.exports = class EditText extends Window
         {
             this.words.visible = true
             this.wordsEdit.visible = false
-            this.words.tint = this._color || this.get('foreground-color')
+            this.words.tint = this.disabled ? this.get('foreground-disabled-color') : this.get('foreground-color')
             switch (this.align)
             {
                 case 'middle':
@@ -269,6 +283,10 @@ module.exports = class EditText extends Window
 
     down(x, y)
     {
+        if (this.disabled)
+        {
+            return
+        }
         if (!this.editing)
         {
             this.emit('editing', this)
