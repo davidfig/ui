@@ -527,7 +527,10 @@ module.exports = class EditText extends Window
                             if (this.cursorPlace > 0)
                             {
                                 this.text = this._text.slice(0, this.cursorPlace - 1) + this._text.slice(this.cursorPlace)
-                                this.cursorPlace--
+                                if (this.cursorPlace !== this._text.length)
+                                {
+                                    this.cursorPlace--
+                                }
                                 this.layout()
                                 return true
                             }

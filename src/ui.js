@@ -68,7 +68,7 @@ module.exports = class UI extends PIXI.Container
                 {
                     return true
                 }
-                if (child.types && child.windowGraphics.containsPoint(point))
+                if (child.visible && child.types && child.windowGraphics.containsPoint(point))
                 {
                     if (child.down(x, y, data))
                     {
@@ -113,7 +113,7 @@ module.exports = class UI extends PIXI.Container
                 {
                     return true
                 }
-                if (child.types)
+                if (child.visible && child.types)
                 {
                     if (child.move(x, y, data))
                     {
@@ -140,7 +140,7 @@ module.exports = class UI extends PIXI.Container
                 {
                     return true
                 }
-                if (child.types && child.windowGraphics.containsPoint(point))
+                if (child.visible && child.types && child.windowGraphics.containsPoint(point))
                 {
                     if (child.wheel(dx, dy, dz, data))
                     {
@@ -165,7 +165,7 @@ module.exports = class UI extends PIXI.Container
             {
                 const child = parent.children[i]
                 check(child)
-                if (child.types)
+                if (child.visible && child.types)
                 {
                     if (child.up(x, y, data))
                     {

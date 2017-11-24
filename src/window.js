@@ -23,6 +23,8 @@ module.exports = class Window extends PIXI.Container
      * @param {boolean|string} [options.overflow=false] true, x, or y
      * @param {object} [options.theme]
      * @param {string} [options.place] combination of top/center/bottom and left/center/bottom
+     * @param {number} [options.maxHeight]
+     * @param {number} [options.maxWidth]
      */
     constructor(options)
     {
@@ -45,6 +47,8 @@ module.exports = class Window extends PIXI.Container
         this.draggable = options.draggable
         this.transparent = options.transparent
         this.place = options.place
+        this.maxHeight = options.maxHeight
+        this.maxWidth = options.maxWidth
         this.noFitX = exists(options.width)
         this._windowWidth = options.width || this.get('minimum-width')
         this.noFitY = exists(options.height)
@@ -277,8 +281,16 @@ module.exports = class Window extends PIXI.Container
             const minHeight = this.get('minimum-height')
             this._windowWidth = this.resizing.width + x - this.isDown.x
             this._windowWidth = this._windowWidth < minWidth ? minWidth : this._windowWidth
+            if (this.maxWidth)
+            {
+                this._windowWidth = this._windowWidth > this.maxWidth ? this.maxWidth : this._windowWidth
+            }
             this._windowHeight = this.resizing.height + y - this.isDown.y
             this._windowHeight = this._windowHeight < minHeight ? minHeight : this._windowHeight
+            if (this.maxHeight)
+            {
+                this._windowHeight = this._windowHeight > this.maxHeight ? this.maxHeight : this._windowHeight
+            }
             if (this.noOversizeX || this.noOversizeY)
             {
                 const spacing = this.get('spacing') * 2
