@@ -1,1888 +1,4 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-
-},{}],2:[function(require,module,exports){
-(function (process){
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-// resolves . and .. elements in a path array with directory names there
-// must be no slashes, empty elements, or device names (c:\) in the array
-// (so also no leading and trailing slashes - it does not distinguish
-// relative and absolute paths)
-function normalizeArray(parts, allowAboveRoot) {
-  // if the path tries to go above the root, `up` ends up > 0
-  var up = 0;
-  for (var i = parts.length - 1; i >= 0; i--) {
-    var last = parts[i];
-    if (last === '.') {
-      parts.splice(i, 1);
-    } else if (last === '..') {
-      parts.splice(i, 1);
-      up++;
-    } else if (up) {
-      parts.splice(i, 1);
-      up--;
-    }
-  }
-
-  // if the path is allowed to go above the root, restore leading ..s
-  if (allowAboveRoot) {
-    for (; up--; up) {
-      parts.unshift('..');
-    }
-  }
-
-  return parts;
-}
-
-// Split a filename into [root, dir, basename, ext], unix version
-// 'root' is just a slash, or nothing.
-var splitPathRe =
-    /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
-var splitPath = function(filename) {
-  return splitPathRe.exec(filename).slice(1);
-};
-
-// path.resolve([from ...], to)
-// posix version
-exports.resolve = function() {
-  var resolvedPath = '',
-      resolvedAbsolute = false;
-
-  for (var i = arguments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
-    var path = (i >= 0) ? arguments[i] : process.cwd();
-
-    // Skip empty and invalid entries
-    if (typeof path !== 'string') {
-      throw new TypeError('Arguments to path.resolve must be strings');
-    } else if (!path) {
-      continue;
-    }
-
-    resolvedPath = path + '/' + resolvedPath;
-    resolvedAbsolute = path.charAt(0) === '/';
-  }
-
-  // At this point the path should be resolved to a full absolute path, but
-  // handle relative paths to be safe (might happen when process.cwd() fails)
-
-  // Normalize the path
-  resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
-    return !!p;
-  }), !resolvedAbsolute).join('/');
-
-  return ((resolvedAbsolute ? '/' : '') + resolvedPath) || '.';
-};
-
-// path.normalize(path)
-// posix version
-exports.normalize = function(path) {
-  var isAbsolute = exports.isAbsolute(path),
-      trailingSlash = substr(path, -1) === '/';
-
-  // Normalize the path
-  path = normalizeArray(filter(path.split('/'), function(p) {
-    return !!p;
-  }), !isAbsolute).join('/');
-
-  if (!path && !isAbsolute) {
-    path = '.';
-  }
-  if (path && trailingSlash) {
-    path += '/';
-  }
-
-  return (isAbsolute ? '/' : '') + path;
-};
-
-// posix version
-exports.isAbsolute = function(path) {
-  return path.charAt(0) === '/';
-};
-
-// posix version
-exports.join = function() {
-  var paths = Array.prototype.slice.call(arguments, 0);
-  return exports.normalize(filter(paths, function(p, index) {
-    if (typeof p !== 'string') {
-      throw new TypeError('Arguments to path.join must be strings');
-    }
-    return p;
-  }).join('/'));
-};
-
-
-// path.relative(from, to)
-// posix version
-exports.relative = function(from, to) {
-  from = exports.resolve(from).substr(1);
-  to = exports.resolve(to).substr(1);
-
-  function trim(arr) {
-    var start = 0;
-    for (; start < arr.length; start++) {
-      if (arr[start] !== '') break;
-    }
-
-    var end = arr.length - 1;
-    for (; end >= 0; end--) {
-      if (arr[end] !== '') break;
-    }
-
-    if (start > end) return [];
-    return arr.slice(start, end - start + 1);
-  }
-
-  var fromParts = trim(from.split('/'));
-  var toParts = trim(to.split('/'));
-
-  var length = Math.min(fromParts.length, toParts.length);
-  var samePartsLength = length;
-  for (var i = 0; i < length; i++) {
-    if (fromParts[i] !== toParts[i]) {
-      samePartsLength = i;
-      break;
-    }
-  }
-
-  var outputParts = [];
-  for (var i = samePartsLength; i < fromParts.length; i++) {
-    outputParts.push('..');
-  }
-
-  outputParts = outputParts.concat(toParts.slice(samePartsLength));
-
-  return outputParts.join('/');
-};
-
-exports.sep = '/';
-exports.delimiter = ':';
-
-exports.dirname = function(path) {
-  var result = splitPath(path),
-      root = result[0],
-      dir = result[1];
-
-  if (!root && !dir) {
-    // No dirname whatsoever
-    return '.';
-  }
-
-  if (dir) {
-    // It has a dirname, strip trailing slash
-    dir = dir.substr(0, dir.length - 1);
-  }
-
-  return root + dir;
-};
-
-
-exports.basename = function(path, ext) {
-  var f = splitPath(path)[2];
-  // TODO: make this comparison case-insensitive on windows?
-  if (ext && f.substr(-1 * ext.length) === ext) {
-    f = f.substr(0, f.length - ext.length);
-  }
-  return f;
-};
-
-
-exports.extname = function(path) {
-  return splitPath(path)[3];
-};
-
-function filter (xs, f) {
-    if (xs.filter) return xs.filter(f);
-    var res = [];
-    for (var i = 0; i < xs.length; i++) {
-        if (f(xs[i], i, xs)) res.push(xs[i]);
-    }
-    return res;
-}
-
-// String.prototype.substr - negative index don't work in IE8
-var substr = 'ab'.substr(-1) === 'b'
-    ? function (str, start, len) { return str.substr(start, len) }
-    : function (str, start, len) {
-        if (start < 0) start = str.length + start;
-        return str.substr(start, len);
-    }
-;
-
-}).call(this,require('_process'))
-},{"_process":3}],3:[function(require,module,exports){
-// shim for using process in browser
-var process = module.exports = {};
-
-// cached from whatever global is present so that test runners that stub it
-// don't break things.  But we need to wrap it in a try catch in case it is
-// wrapped in strict mode code which doesn't define any globals.  It's inside a
-// function because try/catches deoptimize in certain engines.
-
-var cachedSetTimeout;
-var cachedClearTimeout;
-
-function defaultSetTimout() {
-    throw new Error('setTimeout has not been defined');
-}
-function defaultClearTimeout () {
-    throw new Error('clearTimeout has not been defined');
-}
-(function () {
-    try {
-        if (typeof setTimeout === 'function') {
-            cachedSetTimeout = setTimeout;
-        } else {
-            cachedSetTimeout = defaultSetTimout;
-        }
-    } catch (e) {
-        cachedSetTimeout = defaultSetTimout;
-    }
-    try {
-        if (typeof clearTimeout === 'function') {
-            cachedClearTimeout = clearTimeout;
-        } else {
-            cachedClearTimeout = defaultClearTimeout;
-        }
-    } catch (e) {
-        cachedClearTimeout = defaultClearTimeout;
-    }
-} ())
-function runTimeout(fun) {
-    if (cachedSetTimeout === setTimeout) {
-        //normal enviroments in sane situations
-        return setTimeout(fun, 0);
-    }
-    // if setTimeout wasn't available but was latter defined
-    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
-        cachedSetTimeout = setTimeout;
-        return setTimeout(fun, 0);
-    }
-    try {
-        // when when somebody has screwed with setTimeout but no I.E. maddness
-        return cachedSetTimeout(fun, 0);
-    } catch(e){
-        try {
-            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
-            return cachedSetTimeout.call(null, fun, 0);
-        } catch(e){
-            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
-            return cachedSetTimeout.call(this, fun, 0);
-        }
-    }
-
-
-}
-function runClearTimeout(marker) {
-    if (cachedClearTimeout === clearTimeout) {
-        //normal enviroments in sane situations
-        return clearTimeout(marker);
-    }
-    // if clearTimeout wasn't available but was latter defined
-    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
-        cachedClearTimeout = clearTimeout;
-        return clearTimeout(marker);
-    }
-    try {
-        // when when somebody has screwed with setTimeout but no I.E. maddness
-        return cachedClearTimeout(marker);
-    } catch (e){
-        try {
-            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
-            return cachedClearTimeout.call(null, marker);
-        } catch (e){
-            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
-            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
-            return cachedClearTimeout.call(this, marker);
-        }
-    }
-
-
-
-}
-var queue = [];
-var draining = false;
-var currentQueue;
-var queueIndex = -1;
-
-function cleanUpNextTick() {
-    if (!draining || !currentQueue) {
-        return;
-    }
-    draining = false;
-    if (currentQueue.length) {
-        queue = currentQueue.concat(queue);
-    } else {
-        queueIndex = -1;
-    }
-    if (queue.length) {
-        drainQueue();
-    }
-}
-
-function drainQueue() {
-    if (draining) {
-        return;
-    }
-    var timeout = runTimeout(cleanUpNextTick);
-    draining = true;
-
-    var len = queue.length;
-    while(len) {
-        currentQueue = queue;
-        queue = [];
-        while (++queueIndex < len) {
-            if (currentQueue) {
-                currentQueue[queueIndex].run();
-            }
-        }
-        queueIndex = -1;
-        len = queue.length;
-    }
-    currentQueue = null;
-    draining = false;
-    runClearTimeout(timeout);
-}
-
-process.nextTick = function (fun) {
-    var args = new Array(arguments.length - 1);
-    if (arguments.length > 1) {
-        for (var i = 1; i < arguments.length; i++) {
-            args[i - 1] = arguments[i];
-        }
-    }
-    queue.push(new Item(fun, args));
-    if (queue.length === 1 && !draining) {
-        runTimeout(drainQueue);
-    }
-};
-
-// v8 likes predictible objects
-function Item(fun, array) {
-    this.fun = fun;
-    this.array = array;
-}
-Item.prototype.run = function () {
-    this.fun.apply(null, this.array);
-};
-process.title = 'browser';
-process.browser = true;
-process.env = {};
-process.argv = [];
-process.version = ''; // empty string to avoid regexp issues
-process.versions = {};
-
-function noop() {}
-
-process.on = noop;
-process.addListener = noop;
-process.once = noop;
-process.off = noop;
-process.removeListener = noop;
-process.removeAllListeners = noop;
-process.emit = noop;
-process.prependListener = noop;
-process.prependOnceListener = noop;
-
-process.listeners = function (name) { return [] }
-
-process.binding = function (name) {
-    throw new Error('process.binding is not supported');
-};
-
-process.cwd = function () { return '/' };
-process.chdir = function (dir) {
-    throw new Error('process.chdir is not supported');
-};
-process.umask = function() { return 0; };
-
-},{}],4:[function(require,module,exports){
-(function (global){
-/*! https://mths.be/punycode v1.4.1 by @mathias */
-;(function(root) {
-
-	/** Detect free variables */
-	var freeExports = typeof exports == 'object' && exports &&
-		!exports.nodeType && exports;
-	var freeModule = typeof module == 'object' && module &&
-		!module.nodeType && module;
-	var freeGlobal = typeof global == 'object' && global;
-	if (
-		freeGlobal.global === freeGlobal ||
-		freeGlobal.window === freeGlobal ||
-		freeGlobal.self === freeGlobal
-	) {
-		root = freeGlobal;
-	}
-
-	/**
-	 * The `punycode` object.
-	 * @name punycode
-	 * @type Object
-	 */
-	var punycode,
-
-	/** Highest positive signed 32-bit float value */
-	maxInt = 2147483647, // aka. 0x7FFFFFFF or 2^31-1
-
-	/** Bootstring parameters */
-	base = 36,
-	tMin = 1,
-	tMax = 26,
-	skew = 38,
-	damp = 700,
-	initialBias = 72,
-	initialN = 128, // 0x80
-	delimiter = '-', // '\x2D'
-
-	/** Regular expressions */
-	regexPunycode = /^xn--/,
-	regexNonASCII = /[^\x20-\x7E]/, // unprintable ASCII chars + non-ASCII chars
-	regexSeparators = /[\x2E\u3002\uFF0E\uFF61]/g, // RFC 3490 separators
-
-	/** Error messages */
-	errors = {
-		'overflow': 'Overflow: input needs wider integers to process',
-		'not-basic': 'Illegal input >= 0x80 (not a basic code point)',
-		'invalid-input': 'Invalid input'
-	},
-
-	/** Convenience shortcuts */
-	baseMinusTMin = base - tMin,
-	floor = Math.floor,
-	stringFromCharCode = String.fromCharCode,
-
-	/** Temporary variable */
-	key;
-
-	/*--------------------------------------------------------------------------*/
-
-	/**
-	 * A generic error utility function.
-	 * @private
-	 * @param {String} type The error type.
-	 * @returns {Error} Throws a `RangeError` with the applicable error message.
-	 */
-	function error(type) {
-		throw new RangeError(errors[type]);
-	}
-
-	/**
-	 * A generic `Array#map` utility function.
-	 * @private
-	 * @param {Array} array The array to iterate over.
-	 * @param {Function} callback The function that gets called for every array
-	 * item.
-	 * @returns {Array} A new array of values returned by the callback function.
-	 */
-	function map(array, fn) {
-		var length = array.length;
-		var result = [];
-		while (length--) {
-			result[length] = fn(array[length]);
-		}
-		return result;
-	}
-
-	/**
-	 * A simple `Array#map`-like wrapper to work with domain name strings or email
-	 * addresses.
-	 * @private
-	 * @param {String} domain The domain name or email address.
-	 * @param {Function} callback The function that gets called for every
-	 * character.
-	 * @returns {Array} A new string of characters returned by the callback
-	 * function.
-	 */
-	function mapDomain(string, fn) {
-		var parts = string.split('@');
-		var result = '';
-		if (parts.length > 1) {
-			// In email addresses, only the domain name should be punycoded. Leave
-			// the local part (i.e. everything up to `@`) intact.
-			result = parts[0] + '@';
-			string = parts[1];
-		}
-		// Avoid `split(regex)` for IE8 compatibility. See #17.
-		string = string.replace(regexSeparators, '\x2E');
-		var labels = string.split('.');
-		var encoded = map(labels, fn).join('.');
-		return result + encoded;
-	}
-
-	/**
-	 * Creates an array containing the numeric code points of each Unicode
-	 * character in the string. While JavaScript uses UCS-2 internally,
-	 * this function will convert a pair of surrogate halves (each of which
-	 * UCS-2 exposes as separate characters) into a single code point,
-	 * matching UTF-16.
-	 * @see `punycode.ucs2.encode`
-	 * @see <https://mathiasbynens.be/notes/javascript-encoding>
-	 * @memberOf punycode.ucs2
-	 * @name decode
-	 * @param {String} string The Unicode input string (UCS-2).
-	 * @returns {Array} The new array of code points.
-	 */
-	function ucs2decode(string) {
-		var output = [],
-		    counter = 0,
-		    length = string.length,
-		    value,
-		    extra;
-		while (counter < length) {
-			value = string.charCodeAt(counter++);
-			if (value >= 0xD800 && value <= 0xDBFF && counter < length) {
-				// high surrogate, and there is a next character
-				extra = string.charCodeAt(counter++);
-				if ((extra & 0xFC00) == 0xDC00) { // low surrogate
-					output.push(((value & 0x3FF) << 10) + (extra & 0x3FF) + 0x10000);
-				} else {
-					// unmatched surrogate; only append this code unit, in case the next
-					// code unit is the high surrogate of a surrogate pair
-					output.push(value);
-					counter--;
-				}
-			} else {
-				output.push(value);
-			}
-		}
-		return output;
-	}
-
-	/**
-	 * Creates a string based on an array of numeric code points.
-	 * @see `punycode.ucs2.decode`
-	 * @memberOf punycode.ucs2
-	 * @name encode
-	 * @param {Array} codePoints The array of numeric code points.
-	 * @returns {String} The new Unicode string (UCS-2).
-	 */
-	function ucs2encode(array) {
-		return map(array, function(value) {
-			var output = '';
-			if (value > 0xFFFF) {
-				value -= 0x10000;
-				output += stringFromCharCode(value >>> 10 & 0x3FF | 0xD800);
-				value = 0xDC00 | value & 0x3FF;
-			}
-			output += stringFromCharCode(value);
-			return output;
-		}).join('');
-	}
-
-	/**
-	 * Converts a basic code point into a digit/integer.
-	 * @see `digitToBasic()`
-	 * @private
-	 * @param {Number} codePoint The basic numeric code point value.
-	 * @returns {Number} The numeric value of a basic code point (for use in
-	 * representing integers) in the range `0` to `base - 1`, or `base` if
-	 * the code point does not represent a value.
-	 */
-	function basicToDigit(codePoint) {
-		if (codePoint - 48 < 10) {
-			return codePoint - 22;
-		}
-		if (codePoint - 65 < 26) {
-			return codePoint - 65;
-		}
-		if (codePoint - 97 < 26) {
-			return codePoint - 97;
-		}
-		return base;
-	}
-
-	/**
-	 * Converts a digit/integer into a basic code point.
-	 * @see `basicToDigit()`
-	 * @private
-	 * @param {Number} digit The numeric value of a basic code point.
-	 * @returns {Number} The basic code point whose value (when used for
-	 * representing integers) is `digit`, which needs to be in the range
-	 * `0` to `base - 1`. If `flag` is non-zero, the uppercase form is
-	 * used; else, the lowercase form is used. The behavior is undefined
-	 * if `flag` is non-zero and `digit` has no uppercase form.
-	 */
-	function digitToBasic(digit, flag) {
-		//  0..25 map to ASCII a..z or A..Z
-		// 26..35 map to ASCII 0..9
-		return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
-	}
-
-	/**
-	 * Bias adaptation function as per section 3.4 of RFC 3492.
-	 * https://tools.ietf.org/html/rfc3492#section-3.4
-	 * @private
-	 */
-	function adapt(delta, numPoints, firstTime) {
-		var k = 0;
-		delta = firstTime ? floor(delta / damp) : delta >> 1;
-		delta += floor(delta / numPoints);
-		for (/* no initialization */; delta > baseMinusTMin * tMax >> 1; k += base) {
-			delta = floor(delta / baseMinusTMin);
-		}
-		return floor(k + (baseMinusTMin + 1) * delta / (delta + skew));
-	}
-
-	/**
-	 * Converts a Punycode string of ASCII-only symbols to a string of Unicode
-	 * symbols.
-	 * @memberOf punycode
-	 * @param {String} input The Punycode string of ASCII-only symbols.
-	 * @returns {String} The resulting string of Unicode symbols.
-	 */
-	function decode(input) {
-		// Don't use UCS-2
-		var output = [],
-		    inputLength = input.length,
-		    out,
-		    i = 0,
-		    n = initialN,
-		    bias = initialBias,
-		    basic,
-		    j,
-		    index,
-		    oldi,
-		    w,
-		    k,
-		    digit,
-		    t,
-		    /** Cached calculation results */
-		    baseMinusT;
-
-		// Handle the basic code points: let `basic` be the number of input code
-		// points before the last delimiter, or `0` if there is none, then copy
-		// the first basic code points to the output.
-
-		basic = input.lastIndexOf(delimiter);
-		if (basic < 0) {
-			basic = 0;
-		}
-
-		for (j = 0; j < basic; ++j) {
-			// if it's not a basic code point
-			if (input.charCodeAt(j) >= 0x80) {
-				error('not-basic');
-			}
-			output.push(input.charCodeAt(j));
-		}
-
-		// Main decoding loop: start just after the last delimiter if any basic code
-		// points were copied; start at the beginning otherwise.
-
-		for (index = basic > 0 ? basic + 1 : 0; index < inputLength; /* no final expression */) {
-
-			// `index` is the index of the next character to be consumed.
-			// Decode a generalized variable-length integer into `delta`,
-			// which gets added to `i`. The overflow checking is easier
-			// if we increase `i` as we go, then subtract off its starting
-			// value at the end to obtain `delta`.
-			for (oldi = i, w = 1, k = base; /* no condition */; k += base) {
-
-				if (index >= inputLength) {
-					error('invalid-input');
-				}
-
-				digit = basicToDigit(input.charCodeAt(index++));
-
-				if (digit >= base || digit > floor((maxInt - i) / w)) {
-					error('overflow');
-				}
-
-				i += digit * w;
-				t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
-
-				if (digit < t) {
-					break;
-				}
-
-				baseMinusT = base - t;
-				if (w > floor(maxInt / baseMinusT)) {
-					error('overflow');
-				}
-
-				w *= baseMinusT;
-
-			}
-
-			out = output.length + 1;
-			bias = adapt(i - oldi, out, oldi == 0);
-
-			// `i` was supposed to wrap around from `out` to `0`,
-			// incrementing `n` each time, so we'll fix that now:
-			if (floor(i / out) > maxInt - n) {
-				error('overflow');
-			}
-
-			n += floor(i / out);
-			i %= out;
-
-			// Insert `n` at position `i` of the output
-			output.splice(i++, 0, n);
-
-		}
-
-		return ucs2encode(output);
-	}
-
-	/**
-	 * Converts a string of Unicode symbols (e.g. a domain name label) to a
-	 * Punycode string of ASCII-only symbols.
-	 * @memberOf punycode
-	 * @param {String} input The string of Unicode symbols.
-	 * @returns {String} The resulting Punycode string of ASCII-only symbols.
-	 */
-	function encode(input) {
-		var n,
-		    delta,
-		    handledCPCount,
-		    basicLength,
-		    bias,
-		    j,
-		    m,
-		    q,
-		    k,
-		    t,
-		    currentValue,
-		    output = [],
-		    /** `inputLength` will hold the number of code points in `input`. */
-		    inputLength,
-		    /** Cached calculation results */
-		    handledCPCountPlusOne,
-		    baseMinusT,
-		    qMinusT;
-
-		// Convert the input in UCS-2 to Unicode
-		input = ucs2decode(input);
-
-		// Cache the length
-		inputLength = input.length;
-
-		// Initialize the state
-		n = initialN;
-		delta = 0;
-		bias = initialBias;
-
-		// Handle the basic code points
-		for (j = 0; j < inputLength; ++j) {
-			currentValue = input[j];
-			if (currentValue < 0x80) {
-				output.push(stringFromCharCode(currentValue));
-			}
-		}
-
-		handledCPCount = basicLength = output.length;
-
-		// `handledCPCount` is the number of code points that have been handled;
-		// `basicLength` is the number of basic code points.
-
-		// Finish the basic string - if it is not empty - with a delimiter
-		if (basicLength) {
-			output.push(delimiter);
-		}
-
-		// Main encoding loop:
-		while (handledCPCount < inputLength) {
-
-			// All non-basic code points < n have been handled already. Find the next
-			// larger one:
-			for (m = maxInt, j = 0; j < inputLength; ++j) {
-				currentValue = input[j];
-				if (currentValue >= n && currentValue < m) {
-					m = currentValue;
-				}
-			}
-
-			// Increase `delta` enough to advance the decoder's <n,i> state to <m,0>,
-			// but guard against overflow
-			handledCPCountPlusOne = handledCPCount + 1;
-			if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
-				error('overflow');
-			}
-
-			delta += (m - n) * handledCPCountPlusOne;
-			n = m;
-
-			for (j = 0; j < inputLength; ++j) {
-				currentValue = input[j];
-
-				if (currentValue < n && ++delta > maxInt) {
-					error('overflow');
-				}
-
-				if (currentValue == n) {
-					// Represent delta as a generalized variable-length integer
-					for (q = delta, k = base; /* no condition */; k += base) {
-						t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
-						if (q < t) {
-							break;
-						}
-						qMinusT = q - t;
-						baseMinusT = base - t;
-						output.push(
-							stringFromCharCode(digitToBasic(t + qMinusT % baseMinusT, 0))
-						);
-						q = floor(qMinusT / baseMinusT);
-					}
-
-					output.push(stringFromCharCode(digitToBasic(q, 0)));
-					bias = adapt(delta, handledCPCountPlusOne, handledCPCount == basicLength);
-					delta = 0;
-					++handledCPCount;
-				}
-			}
-
-			++delta;
-			++n;
-
-		}
-		return output.join('');
-	}
-
-	/**
-	 * Converts a Punycode string representing a domain name or an email address
-	 * to Unicode. Only the Punycoded parts of the input will be converted, i.e.
-	 * it doesn't matter if you call it on a string that has already been
-	 * converted to Unicode.
-	 * @memberOf punycode
-	 * @param {String} input The Punycoded domain name or email address to
-	 * convert to Unicode.
-	 * @returns {String} The Unicode representation of the given Punycode
-	 * string.
-	 */
-	function toUnicode(input) {
-		return mapDomain(input, function(string) {
-			return regexPunycode.test(string)
-				? decode(string.slice(4).toLowerCase())
-				: string;
-		});
-	}
-
-	/**
-	 * Converts a Unicode string representing a domain name or an email address to
-	 * Punycode. Only the non-ASCII parts of the domain name will be converted,
-	 * i.e. it doesn't matter if you call it with a domain that's already in
-	 * ASCII.
-	 * @memberOf punycode
-	 * @param {String} input The domain name or email address to convert, as a
-	 * Unicode string.
-	 * @returns {String} The Punycode representation of the given domain name or
-	 * email address.
-	 */
-	function toASCII(input) {
-		return mapDomain(input, function(string) {
-			return regexNonASCII.test(string)
-				? 'xn--' + encode(string)
-				: string;
-		});
-	}
-
-	/*--------------------------------------------------------------------------*/
-
-	/** Define the public API */
-	punycode = {
-		/**
-		 * A string representing the current Punycode.js version number.
-		 * @memberOf punycode
-		 * @type String
-		 */
-		'version': '1.4.1',
-		/**
-		 * An object of methods to convert from JavaScript's internal character
-		 * representation (UCS-2) to Unicode code points, and back.
-		 * @see <https://mathiasbynens.be/notes/javascript-encoding>
-		 * @memberOf punycode
-		 * @type Object
-		 */
-		'ucs2': {
-			'decode': ucs2decode,
-			'encode': ucs2encode
-		},
-		'decode': decode,
-		'encode': encode,
-		'toASCII': toASCII,
-		'toUnicode': toUnicode
-	};
-
-	/** Expose `punycode` */
-	// Some AMD build optimizers, like r.js, check for specific condition patterns
-	// like the following:
-	if (
-		typeof define == 'function' &&
-		typeof define.amd == 'object' &&
-		define.amd
-	) {
-		define('punycode', function() {
-			return punycode;
-		});
-	} else if (freeExports && freeModule) {
-		if (module.exports == freeExports) {
-			// in Node.js, io.js, or RingoJS v0.8.0+
-			freeModule.exports = punycode;
-		} else {
-			// in Narwhal or RingoJS v0.7.0-
-			for (key in punycode) {
-				punycode.hasOwnProperty(key) && (freeExports[key] = punycode[key]);
-			}
-		}
-	} else {
-		// in Rhino or a web browser
-		root.punycode = punycode;
-	}
-
-}(this));
-
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],5:[function(require,module,exports){
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-'use strict';
-
-// If obj.hasOwnProperty has been overridden, then calling
-// obj.hasOwnProperty(prop) will break.
-// See: https://github.com/joyent/node/issues/1707
-function hasOwnProperty(obj, prop) {
-  return Object.prototype.hasOwnProperty.call(obj, prop);
-}
-
-module.exports = function(qs, sep, eq, options) {
-  sep = sep || '&';
-  eq = eq || '=';
-  var obj = {};
-
-  if (typeof qs !== 'string' || qs.length === 0) {
-    return obj;
-  }
-
-  var regexp = /\+/g;
-  qs = qs.split(sep);
-
-  var maxKeys = 1000;
-  if (options && typeof options.maxKeys === 'number') {
-    maxKeys = options.maxKeys;
-  }
-
-  var len = qs.length;
-  // maxKeys <= 0 means that we should not limit keys count
-  if (maxKeys > 0 && len > maxKeys) {
-    len = maxKeys;
-  }
-
-  for (var i = 0; i < len; ++i) {
-    var x = qs[i].replace(regexp, '%20'),
-        idx = x.indexOf(eq),
-        kstr, vstr, k, v;
-
-    if (idx >= 0) {
-      kstr = x.substr(0, idx);
-      vstr = x.substr(idx + 1);
-    } else {
-      kstr = x;
-      vstr = '';
-    }
-
-    k = decodeURIComponent(kstr);
-    v = decodeURIComponent(vstr);
-
-    if (!hasOwnProperty(obj, k)) {
-      obj[k] = v;
-    } else if (isArray(obj[k])) {
-      obj[k].push(v);
-    } else {
-      obj[k] = [obj[k], v];
-    }
-  }
-
-  return obj;
-};
-
-var isArray = Array.isArray || function (xs) {
-  return Object.prototype.toString.call(xs) === '[object Array]';
-};
-
-},{}],6:[function(require,module,exports){
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-'use strict';
-
-var stringifyPrimitive = function(v) {
-  switch (typeof v) {
-    case 'string':
-      return v;
-
-    case 'boolean':
-      return v ? 'true' : 'false';
-
-    case 'number':
-      return isFinite(v) ? v : '';
-
-    default:
-      return '';
-  }
-};
-
-module.exports = function(obj, sep, eq, name) {
-  sep = sep || '&';
-  eq = eq || '=';
-  if (obj === null) {
-    obj = undefined;
-  }
-
-  if (typeof obj === 'object') {
-    return map(objectKeys(obj), function(k) {
-      var ks = encodeURIComponent(stringifyPrimitive(k)) + eq;
-      if (isArray(obj[k])) {
-        return map(obj[k], function(v) {
-          return ks + encodeURIComponent(stringifyPrimitive(v));
-        }).join(sep);
-      } else {
-        return ks + encodeURIComponent(stringifyPrimitive(obj[k]));
-      }
-    }).join(sep);
-
-  }
-
-  if (!name) return '';
-  return encodeURIComponent(stringifyPrimitive(name)) + eq +
-         encodeURIComponent(stringifyPrimitive(obj));
-};
-
-var isArray = Array.isArray || function (xs) {
-  return Object.prototype.toString.call(xs) === '[object Array]';
-};
-
-function map (xs, f) {
-  if (xs.map) return xs.map(f);
-  var res = [];
-  for (var i = 0; i < xs.length; i++) {
-    res.push(f(xs[i], i));
-  }
-  return res;
-}
-
-var objectKeys = Object.keys || function (obj) {
-  var res = [];
-  for (var key in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, key)) res.push(key);
-  }
-  return res;
-};
-
-},{}],7:[function(require,module,exports){
-'use strict';
-
-exports.decode = exports.parse = require('./decode');
-exports.encode = exports.stringify = require('./encode');
-
-},{"./decode":5,"./encode":6}],8:[function(require,module,exports){
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-'use strict';
-
-var punycode = require('punycode');
-var util = require('./util');
-
-exports.parse = urlParse;
-exports.resolve = urlResolve;
-exports.resolveObject = urlResolveObject;
-exports.format = urlFormat;
-
-exports.Url = Url;
-
-function Url() {
-  this.protocol = null;
-  this.slashes = null;
-  this.auth = null;
-  this.host = null;
-  this.port = null;
-  this.hostname = null;
-  this.hash = null;
-  this.search = null;
-  this.query = null;
-  this.pathname = null;
-  this.path = null;
-  this.href = null;
-}
-
-// Reference: RFC 3986, RFC 1808, RFC 2396
-
-// define these here so at least they only have to be
-// compiled once on the first module load.
-var protocolPattern = /^([a-z0-9.+-]+:)/i,
-    portPattern = /:[0-9]*$/,
-
-    // Special case for a simple path URL
-    simplePathPattern = /^(\/\/?(?!\/)[^\?\s]*)(\?[^\s]*)?$/,
-
-    // RFC 2396: characters reserved for delimiting URLs.
-    // We actually just auto-escape these.
-    delims = ['<', '>', '"', '`', ' ', '\r', '\n', '\t'],
-
-    // RFC 2396: characters not allowed for various reasons.
-    unwise = ['{', '}', '|', '\\', '^', '`'].concat(delims),
-
-    // Allowed by RFCs, but cause of XSS attacks.  Always escape these.
-    autoEscape = ['\''].concat(unwise),
-    // Characters that are never ever allowed in a hostname.
-    // Note that any invalid chars are also handled, but these
-    // are the ones that are *expected* to be seen, so we fast-path
-    // them.
-    nonHostChars = ['%', '/', '?', ';', '#'].concat(autoEscape),
-    hostEndingChars = ['/', '?', '#'],
-    hostnameMaxLen = 255,
-    hostnamePartPattern = /^[+a-z0-9A-Z_-]{0,63}$/,
-    hostnamePartStart = /^([+a-z0-9A-Z_-]{0,63})(.*)$/,
-    // protocols that can allow "unsafe" and "unwise" chars.
-    unsafeProtocol = {
-      'javascript': true,
-      'javascript:': true
-    },
-    // protocols that never have a hostname.
-    hostlessProtocol = {
-      'javascript': true,
-      'javascript:': true
-    },
-    // protocols that always contain a // bit.
-    slashedProtocol = {
-      'http': true,
-      'https': true,
-      'ftp': true,
-      'gopher': true,
-      'file': true,
-      'http:': true,
-      'https:': true,
-      'ftp:': true,
-      'gopher:': true,
-      'file:': true
-    },
-    querystring = require('querystring');
-
-function urlParse(url, parseQueryString, slashesDenoteHost) {
-  if (url && util.isObject(url) && url instanceof Url) return url;
-
-  var u = new Url;
-  u.parse(url, parseQueryString, slashesDenoteHost);
-  return u;
-}
-
-Url.prototype.parse = function(url, parseQueryString, slashesDenoteHost) {
-  if (!util.isString(url)) {
-    throw new TypeError("Parameter 'url' must be a string, not " + typeof url);
-  }
-
-  // Copy chrome, IE, opera backslash-handling behavior.
-  // Back slashes before the query string get converted to forward slashes
-  // See: https://code.google.com/p/chromium/issues/detail?id=25916
-  var queryIndex = url.indexOf('?'),
-      splitter =
-          (queryIndex !== -1 && queryIndex < url.indexOf('#')) ? '?' : '#',
-      uSplit = url.split(splitter),
-      slashRegex = /\\/g;
-  uSplit[0] = uSplit[0].replace(slashRegex, '/');
-  url = uSplit.join(splitter);
-
-  var rest = url;
-
-  // trim before proceeding.
-  // This is to support parse stuff like "  http://foo.com  \n"
-  rest = rest.trim();
-
-  if (!slashesDenoteHost && url.split('#').length === 1) {
-    // Try fast path regexp
-    var simplePath = simplePathPattern.exec(rest);
-    if (simplePath) {
-      this.path = rest;
-      this.href = rest;
-      this.pathname = simplePath[1];
-      if (simplePath[2]) {
-        this.search = simplePath[2];
-        if (parseQueryString) {
-          this.query = querystring.parse(this.search.substr(1));
-        } else {
-          this.query = this.search.substr(1);
-        }
-      } else if (parseQueryString) {
-        this.search = '';
-        this.query = {};
-      }
-      return this;
-    }
-  }
-
-  var proto = protocolPattern.exec(rest);
-  if (proto) {
-    proto = proto[0];
-    var lowerProto = proto.toLowerCase();
-    this.protocol = lowerProto;
-    rest = rest.substr(proto.length);
-  }
-
-  // figure out if it's got a host
-  // user@server is *always* interpreted as a hostname, and url
-  // resolution will treat //foo/bar as host=foo,path=bar because that's
-  // how the browser resolves relative URLs.
-  if (slashesDenoteHost || proto || rest.match(/^\/\/[^@\/]+@[^@\/]+/)) {
-    var slashes = rest.substr(0, 2) === '//';
-    if (slashes && !(proto && hostlessProtocol[proto])) {
-      rest = rest.substr(2);
-      this.slashes = true;
-    }
-  }
-
-  if (!hostlessProtocol[proto] &&
-      (slashes || (proto && !slashedProtocol[proto]))) {
-
-    // there's a hostname.
-    // the first instance of /, ?, ;, or # ends the host.
-    //
-    // If there is an @ in the hostname, then non-host chars *are* allowed
-    // to the left of the last @ sign, unless some host-ending character
-    // comes *before* the @-sign.
-    // URLs are obnoxious.
-    //
-    // ex:
-    // http://a@b@c/ => user:a@b host:c
-    // http://a@b?@c => user:a host:c path:/?@c
-
-    // v0.12 TODO(isaacs): This is not quite how Chrome does things.
-    // Review our test case against browsers more comprehensively.
-
-    // find the first instance of any hostEndingChars
-    var hostEnd = -1;
-    for (var i = 0; i < hostEndingChars.length; i++) {
-      var hec = rest.indexOf(hostEndingChars[i]);
-      if (hec !== -1 && (hostEnd === -1 || hec < hostEnd))
-        hostEnd = hec;
-    }
-
-    // at this point, either we have an explicit point where the
-    // auth portion cannot go past, or the last @ char is the decider.
-    var auth, atSign;
-    if (hostEnd === -1) {
-      // atSign can be anywhere.
-      atSign = rest.lastIndexOf('@');
-    } else {
-      // atSign must be in auth portion.
-      // http://a@b/c@d => host:b auth:a path:/c@d
-      atSign = rest.lastIndexOf('@', hostEnd);
-    }
-
-    // Now we have a portion which is definitely the auth.
-    // Pull that off.
-    if (atSign !== -1) {
-      auth = rest.slice(0, atSign);
-      rest = rest.slice(atSign + 1);
-      this.auth = decodeURIComponent(auth);
-    }
-
-    // the host is the remaining to the left of the first non-host char
-    hostEnd = -1;
-    for (var i = 0; i < nonHostChars.length; i++) {
-      var hec = rest.indexOf(nonHostChars[i]);
-      if (hec !== -1 && (hostEnd === -1 || hec < hostEnd))
-        hostEnd = hec;
-    }
-    // if we still have not hit it, then the entire thing is a host.
-    if (hostEnd === -1)
-      hostEnd = rest.length;
-
-    this.host = rest.slice(0, hostEnd);
-    rest = rest.slice(hostEnd);
-
-    // pull out port.
-    this.parseHost();
-
-    // we've indicated that there is a hostname,
-    // so even if it's empty, it has to be present.
-    this.hostname = this.hostname || '';
-
-    // if hostname begins with [ and ends with ]
-    // assume that it's an IPv6 address.
-    var ipv6Hostname = this.hostname[0] === '[' &&
-        this.hostname[this.hostname.length - 1] === ']';
-
-    // validate a little.
-    if (!ipv6Hostname) {
-      var hostparts = this.hostname.split(/\./);
-      for (var i = 0, l = hostparts.length; i < l; i++) {
-        var part = hostparts[i];
-        if (!part) continue;
-        if (!part.match(hostnamePartPattern)) {
-          var newpart = '';
-          for (var j = 0, k = part.length; j < k; j++) {
-            if (part.charCodeAt(j) > 127) {
-              // we replace non-ASCII char with a temporary placeholder
-              // we need this to make sure size of hostname is not
-              // broken by replacing non-ASCII by nothing
-              newpart += 'x';
-            } else {
-              newpart += part[j];
-            }
-          }
-          // we test again with ASCII char only
-          if (!newpart.match(hostnamePartPattern)) {
-            var validParts = hostparts.slice(0, i);
-            var notHost = hostparts.slice(i + 1);
-            var bit = part.match(hostnamePartStart);
-            if (bit) {
-              validParts.push(bit[1]);
-              notHost.unshift(bit[2]);
-            }
-            if (notHost.length) {
-              rest = '/' + notHost.join('.') + rest;
-            }
-            this.hostname = validParts.join('.');
-            break;
-          }
-        }
-      }
-    }
-
-    if (this.hostname.length > hostnameMaxLen) {
-      this.hostname = '';
-    } else {
-      // hostnames are always lower case.
-      this.hostname = this.hostname.toLowerCase();
-    }
-
-    if (!ipv6Hostname) {
-      // IDNA Support: Returns a punycoded representation of "domain".
-      // It only converts parts of the domain name that
-      // have non-ASCII characters, i.e. it doesn't matter if
-      // you call it with a domain that already is ASCII-only.
-      this.hostname = punycode.toASCII(this.hostname);
-    }
-
-    var p = this.port ? ':' + this.port : '';
-    var h = this.hostname || '';
-    this.host = h + p;
-    this.href += this.host;
-
-    // strip [ and ] from the hostname
-    // the host field still retains them, though
-    if (ipv6Hostname) {
-      this.hostname = this.hostname.substr(1, this.hostname.length - 2);
-      if (rest[0] !== '/') {
-        rest = '/' + rest;
-      }
-    }
-  }
-
-  // now rest is set to the post-host stuff.
-  // chop off any delim chars.
-  if (!unsafeProtocol[lowerProto]) {
-
-    // First, make 100% sure that any "autoEscape" chars get
-    // escaped, even if encodeURIComponent doesn't think they
-    // need to be.
-    for (var i = 0, l = autoEscape.length; i < l; i++) {
-      var ae = autoEscape[i];
-      if (rest.indexOf(ae) === -1)
-        continue;
-      var esc = encodeURIComponent(ae);
-      if (esc === ae) {
-        esc = escape(ae);
-      }
-      rest = rest.split(ae).join(esc);
-    }
-  }
-
-
-  // chop off from the tail first.
-  var hash = rest.indexOf('#');
-  if (hash !== -1) {
-    // got a fragment string.
-    this.hash = rest.substr(hash);
-    rest = rest.slice(0, hash);
-  }
-  var qm = rest.indexOf('?');
-  if (qm !== -1) {
-    this.search = rest.substr(qm);
-    this.query = rest.substr(qm + 1);
-    if (parseQueryString) {
-      this.query = querystring.parse(this.query);
-    }
-    rest = rest.slice(0, qm);
-  } else if (parseQueryString) {
-    // no query string, but parseQueryString still requested
-    this.search = '';
-    this.query = {};
-  }
-  if (rest) this.pathname = rest;
-  if (slashedProtocol[lowerProto] &&
-      this.hostname && !this.pathname) {
-    this.pathname = '/';
-  }
-
-  //to support http.request
-  if (this.pathname || this.search) {
-    var p = this.pathname || '';
-    var s = this.search || '';
-    this.path = p + s;
-  }
-
-  // finally, reconstruct the href based on what has been validated.
-  this.href = this.format();
-  return this;
-};
-
-// format a parsed object into a url string
-function urlFormat(obj) {
-  // ensure it's an object, and not a string url.
-  // If it's an obj, this is a no-op.
-  // this way, you can call url_format() on strings
-  // to clean up potentially wonky urls.
-  if (util.isString(obj)) obj = urlParse(obj);
-  if (!(obj instanceof Url)) return Url.prototype.format.call(obj);
-  return obj.format();
-}
-
-Url.prototype.format = function() {
-  var auth = this.auth || '';
-  if (auth) {
-    auth = encodeURIComponent(auth);
-    auth = auth.replace(/%3A/i, ':');
-    auth += '@';
-  }
-
-  var protocol = this.protocol || '',
-      pathname = this.pathname || '',
-      hash = this.hash || '',
-      host = false,
-      query = '';
-
-  if (this.host) {
-    host = auth + this.host;
-  } else if (this.hostname) {
-    host = auth + (this.hostname.indexOf(':') === -1 ?
-        this.hostname :
-        '[' + this.hostname + ']');
-    if (this.port) {
-      host += ':' + this.port;
-    }
-  }
-
-  if (this.query &&
-      util.isObject(this.query) &&
-      Object.keys(this.query).length) {
-    query = querystring.stringify(this.query);
-  }
-
-  var search = this.search || (query && ('?' + query)) || '';
-
-  if (protocol && protocol.substr(-1) !== ':') protocol += ':';
-
-  // only the slashedProtocols get the //.  Not mailto:, xmpp:, etc.
-  // unless they had them to begin with.
-  if (this.slashes ||
-      (!protocol || slashedProtocol[protocol]) && host !== false) {
-    host = '//' + (host || '');
-    if (pathname && pathname.charAt(0) !== '/') pathname = '/' + pathname;
-  } else if (!host) {
-    host = '';
-  }
-
-  if (hash && hash.charAt(0) !== '#') hash = '#' + hash;
-  if (search && search.charAt(0) !== '?') search = '?' + search;
-
-  pathname = pathname.replace(/[?#]/g, function(match) {
-    return encodeURIComponent(match);
-  });
-  search = search.replace('#', '%23');
-
-  return protocol + host + pathname + search + hash;
-};
-
-function urlResolve(source, relative) {
-  return urlParse(source, false, true).resolve(relative);
-}
-
-Url.prototype.resolve = function(relative) {
-  return this.resolveObject(urlParse(relative, false, true)).format();
-};
-
-function urlResolveObject(source, relative) {
-  if (!source) return relative;
-  return urlParse(source, false, true).resolveObject(relative);
-}
-
-Url.prototype.resolveObject = function(relative) {
-  if (util.isString(relative)) {
-    var rel = new Url();
-    rel.parse(relative, false, true);
-    relative = rel;
-  }
-
-  var result = new Url();
-  var tkeys = Object.keys(this);
-  for (var tk = 0; tk < tkeys.length; tk++) {
-    var tkey = tkeys[tk];
-    result[tkey] = this[tkey];
-  }
-
-  // hash is always overridden, no matter what.
-  // even href="" will remove it.
-  result.hash = relative.hash;
-
-  // if the relative url is empty, then there's nothing left to do here.
-  if (relative.href === '') {
-    result.href = result.format();
-    return result;
-  }
-
-  // hrefs like //foo/bar always cut to the protocol.
-  if (relative.slashes && !relative.protocol) {
-    // take everything except the protocol from relative
-    var rkeys = Object.keys(relative);
-    for (var rk = 0; rk < rkeys.length; rk++) {
-      var rkey = rkeys[rk];
-      if (rkey !== 'protocol')
-        result[rkey] = relative[rkey];
-    }
-
-    //urlParse appends trailing / to urls like http://www.example.com
-    if (slashedProtocol[result.protocol] &&
-        result.hostname && !result.pathname) {
-      result.path = result.pathname = '/';
-    }
-
-    result.href = result.format();
-    return result;
-  }
-
-  if (relative.protocol && relative.protocol !== result.protocol) {
-    // if it's a known url protocol, then changing
-    // the protocol does weird things
-    // first, if it's not file:, then we MUST have a host,
-    // and if there was a path
-    // to begin with, then we MUST have a path.
-    // if it is file:, then the host is dropped,
-    // because that's known to be hostless.
-    // anything else is assumed to be absolute.
-    if (!slashedProtocol[relative.protocol]) {
-      var keys = Object.keys(relative);
-      for (var v = 0; v < keys.length; v++) {
-        var k = keys[v];
-        result[k] = relative[k];
-      }
-      result.href = result.format();
-      return result;
-    }
-
-    result.protocol = relative.protocol;
-    if (!relative.host && !hostlessProtocol[relative.protocol]) {
-      var relPath = (relative.pathname || '').split('/');
-      while (relPath.length && !(relative.host = relPath.shift()));
-      if (!relative.host) relative.host = '';
-      if (!relative.hostname) relative.hostname = '';
-      if (relPath[0] !== '') relPath.unshift('');
-      if (relPath.length < 2) relPath.unshift('');
-      result.pathname = relPath.join('/');
-    } else {
-      result.pathname = relative.pathname;
-    }
-    result.search = relative.search;
-    result.query = relative.query;
-    result.host = relative.host || '';
-    result.auth = relative.auth;
-    result.hostname = relative.hostname || relative.host;
-    result.port = relative.port;
-    // to support http.request
-    if (result.pathname || result.search) {
-      var p = result.pathname || '';
-      var s = result.search || '';
-      result.path = p + s;
-    }
-    result.slashes = result.slashes || relative.slashes;
-    result.href = result.format();
-    return result;
-  }
-
-  var isSourceAbs = (result.pathname && result.pathname.charAt(0) === '/'),
-      isRelAbs = (
-          relative.host ||
-          relative.pathname && relative.pathname.charAt(0) === '/'
-      ),
-      mustEndAbs = (isRelAbs || isSourceAbs ||
-                    (result.host && relative.pathname)),
-      removeAllDots = mustEndAbs,
-      srcPath = result.pathname && result.pathname.split('/') || [],
-      relPath = relative.pathname && relative.pathname.split('/') || [],
-      psychotic = result.protocol && !slashedProtocol[result.protocol];
-
-  // if the url is a non-slashed url, then relative
-  // links like ../.. should be able
-  // to crawl up to the hostname, as well.  This is strange.
-  // result.protocol has already been set by now.
-  // Later on, put the first path part into the host field.
-  if (psychotic) {
-    result.hostname = '';
-    result.port = null;
-    if (result.host) {
-      if (srcPath[0] === '') srcPath[0] = result.host;
-      else srcPath.unshift(result.host);
-    }
-    result.host = '';
-    if (relative.protocol) {
-      relative.hostname = null;
-      relative.port = null;
-      if (relative.host) {
-        if (relPath[0] === '') relPath[0] = relative.host;
-        else relPath.unshift(relative.host);
-      }
-      relative.host = null;
-    }
-    mustEndAbs = mustEndAbs && (relPath[0] === '' || srcPath[0] === '');
-  }
-
-  if (isRelAbs) {
-    // it's absolute.
-    result.host = (relative.host || relative.host === '') ?
-                  relative.host : result.host;
-    result.hostname = (relative.hostname || relative.hostname === '') ?
-                      relative.hostname : result.hostname;
-    result.search = relative.search;
-    result.query = relative.query;
-    srcPath = relPath;
-    // fall through to the dot-handling below.
-  } else if (relPath.length) {
-    // it's relative
-    // throw away the existing file, and take the new path instead.
-    if (!srcPath) srcPath = [];
-    srcPath.pop();
-    srcPath = srcPath.concat(relPath);
-    result.search = relative.search;
-    result.query = relative.query;
-  } else if (!util.isNullOrUndefined(relative.search)) {
-    // just pull out the search.
-    // like href='?foo'.
-    // Put this after the other two cases because it simplifies the booleans
-    if (psychotic) {
-      result.hostname = result.host = srcPath.shift();
-      //occationaly the auth can get stuck only in host
-      //this especially happens in cases like
-      //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
-      var authInHost = result.host && result.host.indexOf('@') > 0 ?
-                       result.host.split('@') : false;
-      if (authInHost) {
-        result.auth = authInHost.shift();
-        result.host = result.hostname = authInHost.shift();
-      }
-    }
-    result.search = relative.search;
-    result.query = relative.query;
-    //to support http.request
-    if (!util.isNull(result.pathname) || !util.isNull(result.search)) {
-      result.path = (result.pathname ? result.pathname : '') +
-                    (result.search ? result.search : '');
-    }
-    result.href = result.format();
-    return result;
-  }
-
-  if (!srcPath.length) {
-    // no path at all.  easy.
-    // we've already handled the other stuff above.
-    result.pathname = null;
-    //to support http.request
-    if (result.search) {
-      result.path = '/' + result.search;
-    } else {
-      result.path = null;
-    }
-    result.href = result.format();
-    return result;
-  }
-
-  // if a url ENDs in . or .., then it must get a trailing slash.
-  // however, if it ends in anything else non-slashy,
-  // then it must NOT get a trailing slash.
-  var last = srcPath.slice(-1)[0];
-  var hasTrailingSlash = (
-      (result.host || relative.host || srcPath.length > 1) &&
-      (last === '.' || last === '..') || last === '');
-
-  // strip single dots, resolve double dots to parent dir
-  // if the path tries to go above the root, `up` ends up > 0
-  var up = 0;
-  for (var i = srcPath.length; i >= 0; i--) {
-    last = srcPath[i];
-    if (last === '.') {
-      srcPath.splice(i, 1);
-    } else if (last === '..') {
-      srcPath.splice(i, 1);
-      up++;
-    } else if (up) {
-      srcPath.splice(i, 1);
-      up--;
-    }
-  }
-
-  // if the path is allowed to go above the root, restore leading ..s
-  if (!mustEndAbs && !removeAllDots) {
-    for (; up--; up) {
-      srcPath.unshift('..');
-    }
-  }
-
-  if (mustEndAbs && srcPath[0] !== '' &&
-      (!srcPath[0] || srcPath[0].charAt(0) !== '/')) {
-    srcPath.unshift('');
-  }
-
-  if (hasTrailingSlash && (srcPath.join('/').substr(-1) !== '/')) {
-    srcPath.push('');
-  }
-
-  var isAbsolute = srcPath[0] === '' ||
-      (srcPath[0] && srcPath[0].charAt(0) === '/');
-
-  // put the host back
-  if (psychotic) {
-    result.hostname = result.host = isAbsolute ? '' :
-                                    srcPath.length ? srcPath.shift() : '';
-    //occationaly the auth can get stuck only in host
-    //this especially happens in cases like
-    //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
-    var authInHost = result.host && result.host.indexOf('@') > 0 ?
-                     result.host.split('@') : false;
-    if (authInHost) {
-      result.auth = authInHost.shift();
-      result.host = result.hostname = authInHost.shift();
-    }
-  }
-
-  mustEndAbs = mustEndAbs || (result.host && srcPath.length);
-
-  if (mustEndAbs && !isAbsolute) {
-    srcPath.unshift('');
-  }
-
-  if (!srcPath.length) {
-    result.pathname = null;
-    result.path = null;
-  } else {
-    result.pathname = srcPath.join('/');
-  }
-
-  //to support request.http
-  if (!util.isNull(result.pathname) || !util.isNull(result.search)) {
-    result.path = (result.pathname ? result.pathname : '') +
-                  (result.search ? result.search : '');
-  }
-  result.auth = relative.auth || result.auth;
-  result.slashes = result.slashes || relative.slashes;
-  result.href = result.format();
-  return result;
-};
-
-Url.prototype.parseHost = function() {
-  var host = this.host;
-  var port = portPattern.exec(host);
-  if (port) {
-    port = port[0];
-    if (port !== ':') {
-      this.port = port.substr(1);
-    }
-    host = host.substr(0, host.length - port.length);
-  }
-  if (host) this.hostname = host;
-};
-
-},{"./util":9,"punycode":4,"querystring":7}],9:[function(require,module,exports){
-'use strict';
-
-module.exports = {
-  isString: function(arg) {
-    return typeof(arg) === 'string';
-  },
-  isObject: function(arg) {
-    return typeof(arg) === 'object' && arg !== null;
-  },
-  isNull: function(arg) {
-    return arg === null;
-  },
-  isNullOrUndefined: function(arg) {
-    return arg == null;
-  }
-};
-
-},{}],10:[function(require,module,exports){
 const PIXI = require('pixi.js')
 const Random = require('yy-random')
 const Renderer = require('yy-renderer')
@@ -1893,13 +9,14 @@ let renderer, ui
 
 function test()
 {
-    renderer = new Renderer({ debug: true })
+    renderer = new Renderer({ debug: true, autoresize: true })
 
-    ui = renderer.addChild(new UI())
+    ui = renderer.addChild(new UI({ div: renderer.canvas }))
 
     dialogSetup()
-
     scrollSetup()
+    listSetup()
+    treeSetup()
 
     renderer.interval(update)
     renderer.start()
@@ -1909,11 +26,11 @@ let scroll
 
 function scrollSetup()
 {
-    scroll = ui.addChild(new UI.window({ draggable: true, width: 500, height: 300, scroll: true }))
+    scroll = ui.addChild(new UI.Window({ resizeable: true, draggable: true, width: 500, height: 300, overflow: true }))
     const interval = 10
     for (let y = 20; y < scroll.bottom * 3; y += interval)
     {
-        for (let x = 0; x < scroll.right * 3; x += interval)
+        for (let x = 0; x < scroll.right; x += interval)
         {
             const box = scroll.addChild(new PIXI.Sprite(PIXI.Texture.WHITE))
             box.tint = Random.color()
@@ -1922,38 +39,67 @@ function scrollSetup()
         }
     }
     scroll.position.set(220, 10)
+    scroll.layout()
 }
-
-let dialog, OK, Cancel, edit
 
 function dialogSetup()
 {
-    dialog = ui.addChild(new UI.window({ draggable: true, resizeable: true, width: 200, height: 100 }))
+    const dialog = ui.addChild(new UI.Window({ draggable: true, resizeable: true, width: 200, height: 100 }))
     dialog.position.set(10, 10)
-    OK = dialog.addChild(new UI.button({ text: 'OK' }))
-    Cancel = dialog.addChild(new UI.button( { text: 'Cancel' }))
-    OK.width = Cancel.width
-    edit = dialog.addChild(new UI.editText('edit me!', { maxCount: 10, align: 'center', count: 5 }))
-    edit.on('changed', dialogLayout)
-    dialog.on('resizing', dialogLayout)
-
-    dialogLayout()
-
+    dialog.addChild(new UI.Stack([new UI.Button({ text: 'OK' }), new UI.Button({ text: 'Cancel' })], { horizontal: true, sameWidth: true, place: 'bottom' }))
+    dialog.addChild(new UI.EditText('edit me!', { maxCount: 10, count: 10, align: 'right', place: 'top-center', count: 5 }))
     dialog.theme['minimum-width'] = 200
     dialog.theme['minimum-height'] = 100
 }
 
-function dialogLayout()
+function listSetup()
 {
-    const spacing = 5
-    OK.position.set(dialog.center.x - OK.width - spacing, dialog.bottom - OK.height)
-    Cancel.position.set(dialog.center.x + spacing, dialog.bottom - Cancel.height)
-    edit.position.set(dialog.center.x - edit.width / 2, 0)
+    const window = ui.addChild(new UI.Window({ draggable: true, resizeable: true, overflow: true, fitX: true, noOversizeY: true, height: 200}))
+    const list = window.addChild(new UI.List({ many: true }))
+    for (let i = 0; i < 10; i++)
+    {
+        list.add(new UI.Text('Item #' + i), true)
+    }
+    list.layout()
+    window.layout()
+    window.position.set(10, 130)
+}
+
+function treeSetup()
+{
+    const window = ui.addChild(new UI.Window({ draggable: true, resizeable: true, overflow: true, width: 250, height: 400 }))
+    const tree = window.addChild(new UI.Tree({ fit: true }))
+    window.position.set(220, 320)
+    for (let i = 0; i < 5; i++)
+    {
+        const folder = tree.addFolder(null, { name: 'folder-' + i, noLayout: true })
+        let n = Random.get(10)
+        for (let j = 0; j < n; j++)
+        {
+            if (Random.chance(0.2))
+            {
+                const level2 = tree.addFolder(folder, { name: 'level-2-folder-' + i, noLayout: true })
+                const n2 = Random.get(10)
+                for (let k = 0; k < n2; k++)
+                {
+                    tree.addEntry(level2, { name: 'level-2-entry-' + k, noLayout: true})
+                }
+            }
+            else
+            {
+                tree.addEntry(folder, { name: 'entry-' + j, noLayout: true })
+            }
+        }
+    }
+    window.layout()
 }
 
 function update()
 {
-    renderer.dirty = ui.update()
+    if (ui.update())
+    {
+        renderer.dirty = true
+    }
 }
 
 window.onload = function ()
@@ -1963,7 +109,7 @@ window.onload = function ()
     require('fork-me-github')('https://github.com/davidfig/ui')
     require('./highlight')()
 }
-},{"..":12,"./highlight":11,"fork-me-github":18,"pixi.js":333,"yy-random":390,"yy-renderer":391}],11:[function(require,module,exports){
+},{"..":4,"./highlight":2,"fork-me-github":10,"pixi.js":351,"yy-random":415,"yy-renderer":416}],2:[function(require,module,exports){
 // shows the code in the demo
 module.exports = function highlight()
 {
@@ -1977,13 +123,21 @@ module.exports = function highlight()
     }
     client.send()
 }
-},{"highlight.js":20}],12:[function(require,module,exports){
+},{"highlight.js":12}],3:[function(require,module,exports){
+module.exports={"name":"folder","frames":[{"width":10,"height":10,"data":[null,null,null,null,null,null,null,null,null,null,14333229,14989859,14989859,14989859,14989859,null,null,null,null,null,14333229,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14333229,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14333229,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14333229,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14333229,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14333229,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14333229,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14333229,14333229,14333229,14333229,14333229,14333229,14333229,14333229,14333229,14333229]},{"width":10,"height":10,"data":[null,null,null,null,null,null,null,null,null,null,11968849,12757061,12757061,12757061,12757061,null,null,null,null,null,11968849,12757061,12757061,12757061,12757061,12757061,12757061,12757061,12757061,12757061,11968849,15329769,15329769,15329769,15329769,15329769,15329769,15329769,15329769,12757061,14333229,14333229,14333229,14333229,15329769,15329769,15329769,15329769,15329769,12757061,14333229,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14333229,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14333229,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14333229,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14989859,14333229,14333229,14333229,14333229,14333229,14333229,14333229,14333229,14333229,14333229]}],"animations":{"idle":[[0,0]]}}
+
+},{}],4:[function(require,module,exports){
 module.exports = require('./src/ui')
-module.exports.window = module.exports.Window = require('./src/window')
-module.exports.button = module.exports.Button = require('./src/button')
-module.exports.editText = module.exports.EditText = require('./src/edit-text')
-module.exports.tree = module.exports.Tree = require('./src/tree')
-},{"./src/button":392,"./src/edit-text":393,"./src/tree":395,"./src/ui":396,"./src/window":397}],13:[function(require,module,exports){
+module.exports.Window = require('./src/window')
+module.exports.Button = require('./src/button')
+module.exports.EditText = require('./src/edit-text')
+module.exports.Tree = require('./src/tree')
+module.exports.Stack = require('./src/stack')
+module.exports.List = require('./src/list')
+module.exports.Text = require('./src/text')
+module.exports.Spacer = require('./src/spacer')
+module.exports.Tree = require('./src/tree')
+},{"./src/button":419,"./src/edit-text":420,"./src/list":421,"./src/spacer":422,"./src/stack":423,"./src/text":424,"./src/tree":426,"./src/ui":427,"./src/window":428}],5:[function(require,module,exports){
 /**
  * Bit twiddling hacks for JavaScript.
  *
@@ -2189,7 +343,7 @@ exports.nextCombination = function(v) {
 }
 
 
-},{}],14:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 'use strict';
 module.exports = input => {
 	const el = document.createElement('textarea');
@@ -2232,7 +386,7 @@ module.exports = input => {
 	return success;
 };
 
-},{}],15:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 'use strict';
 
 module.exports = earcut;
@@ -2872,7 +1026,7 @@ earcut.flatten = function (data) {
     return result;
 };
 
-},{}],16:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 'use strict';
 
 var has = Object.prototype.hasOwnProperty
@@ -3185,7 +1339,7 @@ if ('undefined' !== typeof module) {
   module.exports = EventEmitter;
 }
 
-},{}],17:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 module.exports = exists;
 
 module.exports.allExist = allExist;
@@ -3198,7 +1352,7 @@ function allExist (/* vals */) {
   var vals = Array.prototype.slice.call(arguments);
   return vals.every(exists);
 }
-},{}],18:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 // Programatically add fork me on github ribbon from javascript without making changes to CSS, HTML, or adding image files
 // by David Figatner
 // copyright 2017 YOPEY YOPEY LLC
@@ -3352,7 +1506,7 @@ module.exports = function forkMe(url, options)
     sheet.insertRule('.' + a.className + '::before' + before + '}')
     sheet.insertRule('.' + a.className + '::after' + after + '}')
 }
-},{}],19:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 /*
 Syntax highlighting with language autodetection.
 https://highlightjs.org/
@@ -4170,7 +2324,7 @@ https://highlightjs.org/
   return hljs;
 }));
 
-},{}],20:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 var hljs = require('./highlight');
 
 hljs.registerLanguage('1c', require('./languages/1c'));
@@ -4351,7 +2505,7 @@ hljs.registerLanguage('xquery', require('./languages/xquery'));
 hljs.registerLanguage('zephir', require('./languages/zephir'));
 
 module.exports = hljs;
-},{"./highlight":19,"./languages/1c":21,"./languages/abnf":22,"./languages/accesslog":23,"./languages/actionscript":24,"./languages/ada":25,"./languages/apache":26,"./languages/applescript":27,"./languages/arduino":28,"./languages/armasm":29,"./languages/asciidoc":30,"./languages/aspectj":31,"./languages/autohotkey":32,"./languages/autoit":33,"./languages/avrasm":34,"./languages/awk":35,"./languages/axapta":36,"./languages/bash":37,"./languages/basic":38,"./languages/bnf":39,"./languages/brainfuck":40,"./languages/cal":41,"./languages/capnproto":42,"./languages/ceylon":43,"./languages/clean":44,"./languages/clojure":46,"./languages/clojure-repl":45,"./languages/cmake":47,"./languages/coffeescript":48,"./languages/coq":49,"./languages/cos":50,"./languages/cpp":51,"./languages/crmsh":52,"./languages/crystal":53,"./languages/cs":54,"./languages/csp":55,"./languages/css":56,"./languages/d":57,"./languages/dart":58,"./languages/delphi":59,"./languages/diff":60,"./languages/django":61,"./languages/dns":62,"./languages/dockerfile":63,"./languages/dos":64,"./languages/dsconfig":65,"./languages/dts":66,"./languages/dust":67,"./languages/ebnf":68,"./languages/elixir":69,"./languages/elm":70,"./languages/erb":71,"./languages/erlang":73,"./languages/erlang-repl":72,"./languages/excel":74,"./languages/fix":75,"./languages/flix":76,"./languages/fortran":77,"./languages/fsharp":78,"./languages/gams":79,"./languages/gauss":80,"./languages/gcode":81,"./languages/gherkin":82,"./languages/glsl":83,"./languages/go":84,"./languages/golo":85,"./languages/gradle":86,"./languages/groovy":87,"./languages/haml":88,"./languages/handlebars":89,"./languages/haskell":90,"./languages/haxe":91,"./languages/hsp":92,"./languages/htmlbars":93,"./languages/http":94,"./languages/hy":95,"./languages/inform7":96,"./languages/ini":97,"./languages/irpf90":98,"./languages/java":99,"./languages/javascript":100,"./languages/jboss-cli":101,"./languages/json":102,"./languages/julia":104,"./languages/julia-repl":103,"./languages/kotlin":105,"./languages/lasso":106,"./languages/ldif":107,"./languages/leaf":108,"./languages/less":109,"./languages/lisp":110,"./languages/livecodeserver":111,"./languages/livescript":112,"./languages/llvm":113,"./languages/lsl":114,"./languages/lua":115,"./languages/makefile":116,"./languages/markdown":117,"./languages/mathematica":118,"./languages/matlab":119,"./languages/maxima":120,"./languages/mel":121,"./languages/mercury":122,"./languages/mipsasm":123,"./languages/mizar":124,"./languages/mojolicious":125,"./languages/monkey":126,"./languages/moonscript":127,"./languages/n1ql":128,"./languages/nginx":129,"./languages/nimrod":130,"./languages/nix":131,"./languages/nsis":132,"./languages/objectivec":133,"./languages/ocaml":134,"./languages/openscad":135,"./languages/oxygene":136,"./languages/parser3":137,"./languages/perl":138,"./languages/pf":139,"./languages/php":140,"./languages/pony":141,"./languages/powershell":142,"./languages/processing":143,"./languages/profile":144,"./languages/prolog":145,"./languages/protobuf":146,"./languages/puppet":147,"./languages/purebasic":148,"./languages/python":149,"./languages/q":150,"./languages/qml":151,"./languages/r":152,"./languages/rib":153,"./languages/roboconf":154,"./languages/routeros":155,"./languages/rsl":156,"./languages/ruby":157,"./languages/ruleslanguage":158,"./languages/rust":159,"./languages/scala":160,"./languages/scheme":161,"./languages/scilab":162,"./languages/scss":163,"./languages/shell":164,"./languages/smali":165,"./languages/smalltalk":166,"./languages/sml":167,"./languages/sqf":168,"./languages/sql":169,"./languages/stan":170,"./languages/stata":171,"./languages/step21":172,"./languages/stylus":173,"./languages/subunit":174,"./languages/swift":175,"./languages/taggerscript":176,"./languages/tap":177,"./languages/tcl":178,"./languages/tex":179,"./languages/thrift":180,"./languages/tp":181,"./languages/twig":182,"./languages/typescript":183,"./languages/vala":184,"./languages/vbnet":185,"./languages/vbscript":187,"./languages/vbscript-html":186,"./languages/verilog":188,"./languages/vhdl":189,"./languages/vim":190,"./languages/x86asm":191,"./languages/xl":192,"./languages/xml":193,"./languages/xquery":194,"./languages/yaml":195,"./languages/zephir":196}],21:[function(require,module,exports){
+},{"./highlight":11,"./languages/1c":13,"./languages/abnf":14,"./languages/accesslog":15,"./languages/actionscript":16,"./languages/ada":17,"./languages/apache":18,"./languages/applescript":19,"./languages/arduino":20,"./languages/armasm":21,"./languages/asciidoc":22,"./languages/aspectj":23,"./languages/autohotkey":24,"./languages/autoit":25,"./languages/avrasm":26,"./languages/awk":27,"./languages/axapta":28,"./languages/bash":29,"./languages/basic":30,"./languages/bnf":31,"./languages/brainfuck":32,"./languages/cal":33,"./languages/capnproto":34,"./languages/ceylon":35,"./languages/clean":36,"./languages/clojure":38,"./languages/clojure-repl":37,"./languages/cmake":39,"./languages/coffeescript":40,"./languages/coq":41,"./languages/cos":42,"./languages/cpp":43,"./languages/crmsh":44,"./languages/crystal":45,"./languages/cs":46,"./languages/csp":47,"./languages/css":48,"./languages/d":49,"./languages/dart":50,"./languages/delphi":51,"./languages/diff":52,"./languages/django":53,"./languages/dns":54,"./languages/dockerfile":55,"./languages/dos":56,"./languages/dsconfig":57,"./languages/dts":58,"./languages/dust":59,"./languages/ebnf":60,"./languages/elixir":61,"./languages/elm":62,"./languages/erb":63,"./languages/erlang":65,"./languages/erlang-repl":64,"./languages/excel":66,"./languages/fix":67,"./languages/flix":68,"./languages/fortran":69,"./languages/fsharp":70,"./languages/gams":71,"./languages/gauss":72,"./languages/gcode":73,"./languages/gherkin":74,"./languages/glsl":75,"./languages/go":76,"./languages/golo":77,"./languages/gradle":78,"./languages/groovy":79,"./languages/haml":80,"./languages/handlebars":81,"./languages/haskell":82,"./languages/haxe":83,"./languages/hsp":84,"./languages/htmlbars":85,"./languages/http":86,"./languages/hy":87,"./languages/inform7":88,"./languages/ini":89,"./languages/irpf90":90,"./languages/java":91,"./languages/javascript":92,"./languages/jboss-cli":93,"./languages/json":94,"./languages/julia":96,"./languages/julia-repl":95,"./languages/kotlin":97,"./languages/lasso":98,"./languages/ldif":99,"./languages/leaf":100,"./languages/less":101,"./languages/lisp":102,"./languages/livecodeserver":103,"./languages/livescript":104,"./languages/llvm":105,"./languages/lsl":106,"./languages/lua":107,"./languages/makefile":108,"./languages/markdown":109,"./languages/mathematica":110,"./languages/matlab":111,"./languages/maxima":112,"./languages/mel":113,"./languages/mercury":114,"./languages/mipsasm":115,"./languages/mizar":116,"./languages/mojolicious":117,"./languages/monkey":118,"./languages/moonscript":119,"./languages/n1ql":120,"./languages/nginx":121,"./languages/nimrod":122,"./languages/nix":123,"./languages/nsis":124,"./languages/objectivec":125,"./languages/ocaml":126,"./languages/openscad":127,"./languages/oxygene":128,"./languages/parser3":129,"./languages/perl":130,"./languages/pf":131,"./languages/php":132,"./languages/pony":133,"./languages/powershell":134,"./languages/processing":135,"./languages/profile":136,"./languages/prolog":137,"./languages/protobuf":138,"./languages/puppet":139,"./languages/purebasic":140,"./languages/python":141,"./languages/q":142,"./languages/qml":143,"./languages/r":144,"./languages/rib":145,"./languages/roboconf":146,"./languages/routeros":147,"./languages/rsl":148,"./languages/ruby":149,"./languages/ruleslanguage":150,"./languages/rust":151,"./languages/scala":152,"./languages/scheme":153,"./languages/scilab":154,"./languages/scss":155,"./languages/shell":156,"./languages/smali":157,"./languages/smalltalk":158,"./languages/sml":159,"./languages/sqf":160,"./languages/sql":161,"./languages/stan":162,"./languages/stata":163,"./languages/step21":164,"./languages/stylus":165,"./languages/subunit":166,"./languages/swift":167,"./languages/taggerscript":168,"./languages/tap":169,"./languages/tcl":170,"./languages/tex":171,"./languages/thrift":172,"./languages/tp":173,"./languages/twig":174,"./languages/typescript":175,"./languages/vala":176,"./languages/vbnet":177,"./languages/vbscript":179,"./languages/vbscript-html":178,"./languages/verilog":180,"./languages/vhdl":181,"./languages/vim":182,"./languages/x86asm":183,"./languages/xl":184,"./languages/xml":185,"./languages/xquery":186,"./languages/yaml":187,"./languages/zephir":188}],13:[function(require,module,exports){
 module.exports = function(hljs){
 
   // общий паттерн для определения идентификаторов
@@ -4861,7 +3015,7 @@ module.exports = function(hljs){
     ]  
   }
 };
-},{}],22:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 module.exports = function(hljs) {
     var regexes = {
         ruleDeclaration: "^[a-zA-Z][a-zA-Z0-9-]*",
@@ -4932,7 +3086,7 @@ module.exports = function(hljs) {
       ]
     };
 };
-},{}],23:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     contains: [
@@ -4970,7 +3124,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],24:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 module.exports = function(hljs) {
   var IDENT_RE = '[a-zA-Z_$][a-zA-Z0-9_$]*';
   var IDENT_FUNC_RETURN_TYPE_RE = '([*]|[a-zA-Z_$][a-zA-Z0-9_$]*)';
@@ -5044,7 +3198,7 @@ module.exports = function(hljs) {
     illegal: /#/
   };
 };
-},{}],25:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 module.exports = // We try to support full Ada2012
 //
 // We highlight all appearances of types, keywords, literals (string, char, number, bool)
@@ -5217,7 +3371,7 @@ function(hljs) {
         ]
     };
 };
-},{}],26:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 module.exports = function(hljs) {
   var NUMBER = {className: 'number', begin: '[\\$%]\\d+'};
   return {
@@ -5263,7 +3417,7 @@ module.exports = function(hljs) {
     illegal: /\S/
   };
 };
-},{}],27:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 module.exports = function(hljs) {
   var STRING = hljs.inherit(hljs.QUOTE_STRING_MODE, {illegal: ''});
   var PARAMS = {
@@ -5349,7 +3503,7 @@ module.exports = function(hljs) {
     illegal: '//|->|=>|\\[\\['
   };
 };
-},{}],28:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 module.exports = function(hljs) {
   var CPP = hljs.getLanguage('cpp').exports;
 	return {
@@ -5449,7 +3603,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],29:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 module.exports = function(hljs) {
     //local labels: %?[FB]?[AT]?\d{1,2}\w+
   return {
@@ -5541,7 +3695,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],30:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['adoc'],
@@ -5729,7 +3883,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],31:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 module.exports = function (hljs) {
   var KEYWORDS =
     'false synchronized int abstract float private char boolean static null if const ' +
@@ -5874,7 +4028,7 @@ module.exports = function (hljs) {
     ]
   };
 };
-},{}],32:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 module.exports = function(hljs) {
   var BACKTICK_ESCAPE = {
     begin: '`[\\s\\S]'
@@ -5933,7 +4087,7 @@ module.exports = function(hljs) {
     ]
   }
 };
-},{}],33:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 module.exports = function(hljs) {
     var KEYWORDS = 'ByRef Case Const ContinueCase ContinueLoop ' +
         'Default Dim Do Else ElseIf EndFunc EndIf EndSelect ' +
@@ -6069,7 +4223,7 @@ module.exports = function(hljs) {
         ]
     }
 };
-},{}],34:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     case_insensitive: true,
@@ -6131,7 +4285,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],35:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 module.exports = function(hljs) {
   var VARIABLE = {
     className: 'variable',
@@ -6184,7 +4338,7 @@ module.exports = function(hljs) {
     ]
   }
 };
-},{}],36:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords: 'false int abstract private char boolean static null if for true ' +
@@ -6215,7 +4369,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],37:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 module.exports = function(hljs) {
   var VAR = {
     className: 'variable',
@@ -6290,7 +4444,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],38:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     case_insensitive: true,
@@ -6341,7 +4495,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],39:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 module.exports = function(hljs){
   return {
     contains: [
@@ -6370,7 +4524,7 @@ module.exports = function(hljs){
     ]
   };
 };
-},{}],40:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 module.exports = function(hljs){
   var LITERAL = {
     className: 'literal',
@@ -6407,7 +4561,7 @@ module.exports = function(hljs){
     ]
   };
 };
-},{}],41:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS =
     'div mod in and or not xor asserterror begin case do downto else end exit for if of repeat then to ' +
@@ -6487,7 +4641,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],42:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['capnp'],
@@ -6536,7 +4690,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],43:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 module.exports = function(hljs) {
   // 2.3. Identifiers and keywords
   var KEYWORDS =
@@ -6603,7 +4757,7 @@ module.exports = function(hljs) {
     ].concat(EXPRESSIONS)
   };
 };
-},{}],44:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['clean','icl','dcl'],
@@ -6628,7 +4782,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],45:[function(require,module,exports){
+},{}],37:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     contains: [
@@ -6643,7 +4797,7 @@ module.exports = function(hljs) {
     ]
   }
 };
-},{}],46:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 module.exports = function(hljs) {
   var keywords = {
     'builtin-name':
@@ -6739,7 +4893,7 @@ module.exports = function(hljs) {
     contains: [LIST, STRING, HINT, HINT_COL, COMMENT, KEY, COLLECTION, NUMBER, LITERAL]
   }
 };
-},{}],47:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['cmake.in'],
@@ -6777,7 +4931,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],48:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = {
     keyword:
@@ -6923,7 +5077,7 @@ module.exports = function(hljs) {
     ])
   };
 };
-},{}],49:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords: {
@@ -6990,7 +5144,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],50:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 module.exports = function cos (hljs) {
 
   var STRINGS = {
@@ -7114,7 +5268,7 @@ module.exports = function cos (hljs) {
     ]
   };
 };
-},{}],51:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 module.exports = function(hljs) {
   var CPP_PRIMITIVE_TYPES = {
     className: 'keyword',
@@ -7289,7 +5443,7 @@ module.exports = function(hljs) {
     }
   };
 };
-},{}],52:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 module.exports = function(hljs) {
   var RESOURCES = 'primitive rsc_template';
 
@@ -7383,7 +5537,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],53:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 module.exports = function(hljs) {
   var NUM_SUFFIX = '(_[uif](8|16|32|64))?';
   var CRYSTAL_IDENT_RE = '[a-zA-Z_]\\w*[!?=]?';
@@ -7577,7 +5731,7 @@ module.exports = function(hljs) {
     contains: CRYSTAL_DEFAULT_CONTAINS
   };
 };
-},{}],54:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = {
     keyword:
@@ -7754,7 +5908,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],55:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     case_insensitive: false,
@@ -7776,7 +5930,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],56:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 module.exports = function(hljs) {
   var IDENT_RE = '[a-zA-Z-][a-zA-Z0-9_-]*';
   var RULE = {
@@ -7881,7 +6035,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],57:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 module.exports = /**
  * Known issues:
  *
@@ -8139,7 +6293,7 @@ function(hljs) {
     ]
   };
 };
-},{}],58:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 module.exports = function (hljs) {
   var SUBST = {
     className: 'subst',
@@ -8240,7 +6394,7 @@ module.exports = function (hljs) {
     ]
   }
 };
-},{}],59:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS =
     'exports register file shl array record property for mod while set ally label uses raise not ' +
@@ -8309,7 +6463,7 @@ module.exports = function(hljs) {
     ].concat(COMMENT_MODES)
   };
 };
-},{}],60:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['patch'],
@@ -8349,7 +6503,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],61:[function(require,module,exports){
+},{}],53:[function(require,module,exports){
 module.exports = function(hljs) {
   var FILTER = {
     begin: /\|[A-Za-z]+:?/,
@@ -8413,7 +6567,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],62:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['bind', 'zone'],
@@ -8442,7 +6596,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],63:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['docker'],
@@ -8464,7 +6618,7 @@ module.exports = function(hljs) {
     illegal: '</'
   }
 };
-},{}],64:[function(require,module,exports){
+},{}],56:[function(require,module,exports){
 module.exports = function(hljs) {
   var COMMENT = hljs.COMMENT(
     /^\s*@?rem\b/, /$/,
@@ -8516,7 +6670,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],65:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 module.exports = function(hljs) {
   var QUOTED_PROPERTY = {
     className: 'string',
@@ -8563,7 +6717,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],66:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
 module.exports = function(hljs) {
   var STRINGS = {
     className: 'string',
@@ -8687,7 +6841,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],67:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 module.exports = function(hljs) {
   var EXPRESSION_KEYWORDS = 'if eq ne lt lte gt gte select default math sep';
   return {
@@ -8719,7 +6873,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],68:[function(require,module,exports){
+},{}],60:[function(require,module,exports){
 module.exports = function(hljs) {
     var commentMode = hljs.COMMENT(/\(\*/, /\*\)/);
 
@@ -8752,7 +6906,7 @@ module.exports = function(hljs) {
         ]
     };
 };
-},{}],69:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 module.exports = function(hljs) {
   var ELIXIR_IDENT_RE = '[a-zA-Z_][a-zA-Z0-9_]*(\\!|\\?)?';
   var ELIXIR_METHOD_RE = '[a-zA-Z_]\\w*[!?=]?|[-+~]\\@|<<|>>|=~|===?|<=>|[<>]=?|\\*\\*|[-/+%^&*~`|]|\\[\\]=?';
@@ -8849,7 +7003,7 @@ module.exports = function(hljs) {
     contains: ELIXIR_DEFAULT_CONTAINS
   };
 };
-},{}],70:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
 module.exports = function(hljs) {
   var COMMENT = {
     variants: [
@@ -8933,7 +7087,7 @@ module.exports = function(hljs) {
     illegal: /;/
   };
 };
-},{}],71:[function(require,module,exports){
+},{}],63:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     subLanguage: 'xml',
@@ -8948,7 +7102,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],72:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords: {
@@ -8994,7 +7148,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],73:[function(require,module,exports){
+},{}],65:[function(require,module,exports){
 module.exports = function(hljs) {
   var BASIC_ATOM_RE = '[a-z\'][a-zA-Z0-9_\']*';
   var FUNCTION_NAME_RE = '(' + BASIC_ATOM_RE + ':' + BASIC_ATOM_RE + '|' + BASIC_ATOM_RE + ')';
@@ -9140,7 +7294,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],74:[function(require,module,exports){
+},{}],66:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['xlsx', 'xls'],
@@ -9188,7 +7342,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],75:[function(require,module,exports){
+},{}],67:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     contains: [
@@ -9217,7 +7371,7 @@ module.exports = function(hljs) {
     case_insensitive: true
   };
 };
-},{}],76:[function(require,module,exports){
+},{}],68:[function(require,module,exports){
 module.exports = function (hljs) {
 
     var CHAR = {
@@ -9262,7 +7416,7 @@ module.exports = function (hljs) {
         ]
     };
 };
-},{}],77:[function(require,module,exports){
+},{}],69:[function(require,module,exports){
 module.exports = function(hljs) {
   var PARAMS = {
     className: 'params',
@@ -9333,7 +7487,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],78:[function(require,module,exports){
+},{}],70:[function(require,module,exports){
 module.exports = function(hljs) {
   var TYPEPARAM = {
     begin: '<', end: '>',
@@ -9392,7 +7546,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],79:[function(require,module,exports){
+},{}],71:[function(require,module,exports){
 module.exports = function (hljs) {
   var KEYWORDS = {
     'keyword':
@@ -9546,7 +7700,7 @@ module.exports = function (hljs) {
     ]
   };
 };
-},{}],80:[function(require,module,exports){
+},{}],72:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = {
     keyword: 'and bool break call callexe checkinterrupt clear clearg closeall cls comlog compile ' +
@@ -9770,7 +7924,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],81:[function(require,module,exports){
+},{}],73:[function(require,module,exports){
 module.exports = function(hljs) {
     var GCODE_IDENT_RE = '[A-Z_][A-Z0-9_.]*';
     var GCODE_CLOSE_RE = '\\%';
@@ -9837,7 +7991,7 @@ module.exports = function(hljs) {
         ].concat(GCODE_CODE)
     };
 };
-},{}],82:[function(require,module,exports){
+},{}],74:[function(require,module,exports){
 module.exports = function (hljs) {
   return {
     aliases: ['feature'],
@@ -9874,7 +8028,7 @@ module.exports = function (hljs) {
     ]
   };
 };
-},{}],83:[function(require,module,exports){
+},{}],75:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords: {
@@ -9991,7 +8145,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],84:[function(require,module,exports){
+},{}],76:[function(require,module,exports){
 module.exports = function(hljs) {
   var GO_KEYWORDS = {
     keyword:
@@ -10045,7 +8199,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],85:[function(require,module,exports){
+},{}],77:[function(require,module,exports){
 module.exports = function(hljs) {
     return {
       keywords: {
@@ -10068,7 +8222,7 @@ module.exports = function(hljs) {
       ]
     }
 };
-},{}],86:[function(require,module,exports){
+},{}],78:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     case_insensitive: true,
@@ -10103,7 +8257,7 @@ module.exports = function(hljs) {
     ]
   }
 };
-},{}],87:[function(require,module,exports){
+},{}],79:[function(require,module,exports){
 module.exports = function(hljs) {
     return {
         keywords: {
@@ -10197,7 +8351,7 @@ module.exports = function(hljs) {
         illegal: /#|<\//
     }
 };
-},{}],88:[function(require,module,exports){
+},{}],80:[function(require,module,exports){
 module.exports = // TODO support filter tags like :javascript, support inline HTML
 function(hljs) {
   return {
@@ -10304,7 +8458,7 @@ function(hljs) {
     ]
   };
 };
-},{}],89:[function(require,module,exports){
+},{}],81:[function(require,module,exports){
 module.exports = function(hljs) {
   var BUILT_INS = {'builtin-name': 'each in with if else unless bindattr action collection debugger log outlet template unbound view yield'};
   return {
@@ -10338,7 +8492,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],90:[function(require,module,exports){
+},{}],82:[function(require,module,exports){
 module.exports = function(hljs) {
   var COMMENT = {
     variants: [
@@ -10460,7 +8614,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],91:[function(require,module,exports){
+},{}],83:[function(require,module,exports){
 module.exports = function(hljs) {
   var IDENT_RE = '[a-zA-Z_$][a-zA-Z0-9_$]*';
   var IDENT_FUNC_RETURN_TYPE_RE = '([*]|[a-zA-Z_$][a-zA-Z0-9_$]*)';
@@ -10572,7 +8726,7 @@ module.exports = function(hljs) {
     illegal: /<\//
   };
 };
-},{}],92:[function(require,module,exports){
+},{}],84:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     case_insensitive: true,
@@ -10618,7 +8772,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],93:[function(require,module,exports){
+},{}],85:[function(require,module,exports){
 module.exports = function(hljs) {
   var BUILT_INS = 'action collection component concat debugger each each-in else get hash if input link-to loc log mut outlet partial query-params render textarea unbound unless with yield view';
 
@@ -10689,7 +8843,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],94:[function(require,module,exports){
+},{}],86:[function(require,module,exports){
 module.exports = function(hljs) {
   var VERSION = 'HTTP/[0-9\\.]+';
   return {
@@ -10730,7 +8884,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],95:[function(require,module,exports){
+},{}],87:[function(require,module,exports){
 module.exports = function(hljs) {
   var keywords = {
     'builtin-name':
@@ -10832,7 +8986,7 @@ module.exports = function(hljs) {
     contains: [SHEBANG, LIST, STRING, HINT, HINT_COL, COMMENT, KEY, COLLECTION, NUMBER, LITERAL]
   }
 };
-},{}],96:[function(require,module,exports){
+},{}],88:[function(require,module,exports){
 module.exports = function(hljs) {
   var START_BRACKET = '\\[';
   var END_BRACKET = '\\]';
@@ -10889,7 +9043,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],97:[function(require,module,exports){
+},{}],89:[function(require,module,exports){
 module.exports = function(hljs) {
   var STRING = {
     className: "string",
@@ -10955,7 +9109,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],98:[function(require,module,exports){
+},{}],90:[function(require,module,exports){
 module.exports = function(hljs) {
   var PARAMS = {
     className: 'params',
@@ -11031,7 +9185,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],99:[function(require,module,exports){
+},{}],91:[function(require,module,exports){
 module.exports = function(hljs) {
   var JAVA_IDENT_RE = '[\u00C0-\u02B8a-zA-Z_$][\u00C0-\u02B8a-zA-Z_$0-9]*';
   var GENERIC_IDENT_RE = JAVA_IDENT_RE + '(<' + JAVA_IDENT_RE + '(\\s*,\\s*' + JAVA_IDENT_RE + ')*>)?';
@@ -11139,7 +9293,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],100:[function(require,module,exports){
+},{}],92:[function(require,module,exports){
 module.exports = function(hljs) {
   var IDENT_RE = '[A-Za-z$_][0-9A-Za-z$_]*';
   var KEYWORDS = {
@@ -11310,7 +9464,7 @@ module.exports = function(hljs) {
     illegal: /#(?!!)/
   };
 };
-},{}],101:[function(require,module,exports){
+},{}],93:[function(require,module,exports){
 module.exports = function (hljs) {
   var PARAM = {
     begin: /[\w-]+ *=/, returnBegin: true,
@@ -11357,7 +9511,7 @@ module.exports = function (hljs) {
     ]
   }
 };
-},{}],102:[function(require,module,exports){
+},{}],94:[function(require,module,exports){
 module.exports = function(hljs) {
   var LITERALS = {literal: 'true false null'};
   var TYPES = [
@@ -11394,7 +9548,7 @@ module.exports = function(hljs) {
     illegal: '\\S'
   };
 };
-},{}],103:[function(require,module,exports){
+},{}],95:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     contains: [
@@ -11418,7 +9572,7 @@ module.exports = function(hljs) {
     ]
   }
 };
-},{}],104:[function(require,module,exports){
+},{}],96:[function(require,module,exports){
 module.exports = function(hljs) {
   // Since there are numerous special names in Julia, it is too much trouble
   // to maintain them by hand. Hence these names (i.e. keywords, literals and
@@ -11580,7 +9734,7 @@ module.exports = function(hljs) {
 
   return DEFAULT;
 };
-},{}],105:[function(require,module,exports){
+},{}],97:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = {
     keyword:
@@ -11754,7 +9908,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],106:[function(require,module,exports){
+},{}],98:[function(require,module,exports){
 module.exports = function(hljs) {
   var LASSO_IDENT_RE = '[a-zA-Z_][\\w.]*';
   var LASSO_ANGLE_RE = '<\\?(lasso(script)?|=)';
@@ -11917,7 +10071,7 @@ module.exports = function(hljs) {
     ].concat(LASSO_CODE)
   };
 };
-},{}],107:[function(require,module,exports){
+},{}],99:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     contains: [
@@ -11940,7 +10094,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],108:[function(require,module,exports){
+},{}],100:[function(require,module,exports){
 module.exports = function (hljs) {
   return {
     contains: [
@@ -11980,7 +10134,7 @@ module.exports = function (hljs) {
     ]
   };
 };
-},{}],109:[function(require,module,exports){
+},{}],101:[function(require,module,exports){
 module.exports = function(hljs) {
   var IDENT_RE        = '[\\w-]+'; // yes, Less identifiers may begin with a digit
   var INTERP_IDENT_RE = '(' + IDENT_RE + '|@{' + IDENT_RE + '})';
@@ -12120,7 +10274,7 @@ module.exports = function(hljs) {
     contains: RULES
   };
 };
-},{}],110:[function(require,module,exports){
+},{}],102:[function(require,module,exports){
 module.exports = function(hljs) {
   var LISP_IDENT_RE = '[a-zA-Z_\\-\\+\\*\\/\\<\\=\\>\\&\\#][a-zA-Z0-9_\\-\\+\\*\\/\\<\\=\\>\\&\\#!]*';
   var MEC_RE = '\\|[^]*?\\|';
@@ -12223,7 +10377,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],111:[function(require,module,exports){
+},{}],103:[function(require,module,exports){
 module.exports = function(hljs) {
   var VARIABLE = {
     begin: '\\b[gtps][A-Z]+[A-Za-z0-9_\\-]*\\b|\\$_[A-Z]+',
@@ -12380,7 +10534,7 @@ module.exports = function(hljs) {
     illegal: ';$|^\\[|^=|&|{'
   };
 };
-},{}],112:[function(require,module,exports){
+},{}],104:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = {
     keyword:
@@ -12529,7 +10683,7 @@ module.exports = function(hljs) {
     ])
   };
 };
-},{}],113:[function(require,module,exports){
+},{}],105:[function(require,module,exports){
 module.exports = function(hljs) {
   var identifier = '([-a-zA-Z$._][\\w\\-$.]*)';
   return {
@@ -12618,7 +10772,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],114:[function(require,module,exports){
+},{}],106:[function(require,module,exports){
 module.exports = function(hljs) {
 
     var LSL_STRING_ESCAPE_CHARS = {
@@ -12701,7 +10855,7 @@ module.exports = function(hljs) {
         ]
     };
 };
-},{}],115:[function(require,module,exports){
+},{}],107:[function(require,module,exports){
 module.exports = function(hljs) {
   var OPENING_LONG_BRACKET = '\\[=*\\[';
   var CLOSING_LONG_BRACKET = '\\]=*\\]';
@@ -12767,7 +10921,7 @@ module.exports = function(hljs) {
     ])
   };
 };
-},{}],116:[function(require,module,exports){
+},{}],108:[function(require,module,exports){
 module.exports = function(hljs) {
   /* Variables: simple (eg $(var)) and special (eg $@) */
   var VARIABLE = {
@@ -12848,7 +11002,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],117:[function(require,module,exports){
+},{}],109:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['md', 'mkdown', 'mkd'],
@@ -12956,7 +11110,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],118:[function(require,module,exports){
+},{}],110:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['mma'],
@@ -13014,7 +11168,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],119:[function(require,module,exports){
+},{}],111:[function(require,module,exports){
 module.exports = function(hljs) {
   var COMMON_CONTAINS = [
     hljs.C_NUMBER_MODE,
@@ -13102,7 +11256,7 @@ module.exports = function(hljs) {
     ].concat(COMMON_CONTAINS)
   };
 };
-},{}],120:[function(require,module,exports){
+},{}],112:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = 'if then else elseif for thru do while unless step in and or not';
   var LITERALS = 'true false unknown inf minf ind und %e %i %pi %phi %gamma';
@@ -13508,7 +11662,7 @@ module.exports = function(hljs) {
     illegal: /@/
   }
 };
-},{}],121:[function(require,module,exports){
+},{}],113:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords:
@@ -13733,7 +11887,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],122:[function(require,module,exports){
+},{}],114:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = {
     keyword:
@@ -13815,7 +11969,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],123:[function(require,module,exports){
+},{}],115:[function(require,module,exports){
 module.exports = function(hljs) {
     //local labels: %?[FB]?[AT]?\d{1,2}\w+
   return {
@@ -13901,7 +12055,7 @@ module.exports = function(hljs) {
     illegal: '\/'
   };
 };
-},{}],124:[function(require,module,exports){
+},{}],116:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords:
@@ -13920,7 +12074,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],125:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     subLanguage: 'xml',
@@ -13945,7 +12099,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],126:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
 module.exports = function(hljs) {
   var NUMBER = {
     className: 'number', relevance: 0,
@@ -14020,7 +12174,7 @@ module.exports = function(hljs) {
     ]
   }
 };
-},{}],127:[function(require,module,exports){
+},{}],119:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = {
     keyword:
@@ -14132,7 +12286,7 @@ module.exports = function(hljs) {
     ])
   };
 };
-},{}],128:[function(require,module,exports){
+},{}],120:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     case_insensitive: true,
@@ -14201,7 +12355,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],129:[function(require,module,exports){
+},{}],121:[function(require,module,exports){
 module.exports = function(hljs) {
   var VAR = {
     className: 'variable',
@@ -14294,7 +12448,7 @@ module.exports = function(hljs) {
     illegal: '[^\\s\\}]'
   };
 };
-},{}],130:[function(require,module,exports){
+},{}],122:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['nim'],
@@ -14349,7 +12503,7 @@ module.exports = function(hljs) {
     ]
   }
 };
-},{}],131:[function(require,module,exports){
+},{}],123:[function(require,module,exports){
 module.exports = function(hljs) {
   var NIX_KEYWORDS = {
     keyword:
@@ -14398,7 +12552,7 @@ module.exports = function(hljs) {
     contains: EXPRESSIONS
   };
 };
-},{}],132:[function(require,module,exports){
+},{}],124:[function(require,module,exports){
 module.exports = function(hljs) {
   var CONSTANTS = {
     className: 'variable',
@@ -14504,7 +12658,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],133:[function(require,module,exports){
+},{}],125:[function(require,module,exports){
 module.exports = function(hljs) {
   var API_CLASS = {
     className: 'built_in',
@@ -14595,7 +12749,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],134:[function(require,module,exports){
+},{}],126:[function(require,module,exports){
 module.exports = function(hljs) {
   /* missing support for heredoc-like string (OCaml 4.0.2+) */
   return {
@@ -14666,7 +12820,7 @@ module.exports = function(hljs) {
     ]
   }
 };
-},{}],135:[function(require,module,exports){
+},{}],127:[function(require,module,exports){
 module.exports = function(hljs) {
 	var SPECIAL_VARS = {
 		className: 'keyword',
@@ -14723,7 +12877,7 @@ module.exports = function(hljs) {
 		]
 	}
 };
-},{}],136:[function(require,module,exports){
+},{}],128:[function(require,module,exports){
 module.exports = function(hljs) {
   var OXYGENE_KEYWORDS = 'abstract add and array as asc aspect assembly async begin break block by case class concat const copy constructor continue '+
     'create default delegate desc distinct div do downto dynamic each else empty end ensure enum equals event except exit extension external false '+
@@ -14793,7 +12947,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],137:[function(require,module,exports){
+},{}],129:[function(require,module,exports){
 module.exports = function(hljs) {
   var CURLY_SUBCOMMENT = hljs.COMMENT(
     '{',
@@ -14841,7 +12995,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],138:[function(require,module,exports){
+},{}],130:[function(require,module,exports){
 module.exports = function(hljs) {
   var PERL_KEYWORDS = 'getpwent getservent quotemeta msgrcv scalar kill dbmclose undef lc ' +
     'ma syswrite tr send umask sysopen shmwrite vec qx utime local oct semctl localtime ' +
@@ -14998,7 +13152,7 @@ module.exports = function(hljs) {
     contains: PERL_DEFAULT_CONTAINS
   };
 };
-},{}],139:[function(require,module,exports){
+},{}],131:[function(require,module,exports){
 module.exports = function(hljs) {
   var MACRO = {
     className: 'variable',
@@ -15050,7 +13204,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],140:[function(require,module,exports){
+},{}],132:[function(require,module,exports){
 module.exports = function(hljs) {
   var VARIABLE = {
     begin: '\\$+[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*'
@@ -15177,7 +13331,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],141:[function(require,module,exports){
+},{}],133:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = {
     keyword:
@@ -15268,7 +13422,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],142:[function(require,module,exports){
+},{}],134:[function(require,module,exports){
 module.exports = function(hljs) {
   var BACKTICK_ESCAPE = {
     begin: '`[\\s\\S]',
@@ -15349,7 +13503,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],143:[function(require,module,exports){
+},{}],135:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords: {
@@ -15397,7 +13551,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],144:[function(require,module,exports){
+},{}],136:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     contains: [
@@ -15427,7 +13581,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],145:[function(require,module,exports){
+},{}],137:[function(require,module,exports){
 module.exports = function(hljs) {
 
   var ATOM = {
@@ -15515,7 +13669,7 @@ module.exports = function(hljs) {
     ])
   };
 };
-},{}],146:[function(require,module,exports){
+},{}],138:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords: {
@@ -15551,7 +13705,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],147:[function(require,module,exports){
+},{}],139:[function(require,module,exports){
 module.exports = function(hljs) {
 
   var PUPPET_KEYWORDS = {
@@ -15666,7 +13820,7 @@ module.exports = function(hljs) {
     ]
   }
 };
-},{}],148:[function(require,module,exports){
+},{}],140:[function(require,module,exports){
 module.exports = // Base deafult colors in PB IDE: background: #FFFFDF; foreground: #000000;
 
 function(hljs) {
@@ -15724,7 +13878,7 @@ function(hljs) {
     ]
   };
 };
-},{}],149:[function(require,module,exports){
+},{}],141:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = {
     keyword:
@@ -15840,7 +13994,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],150:[function(require,module,exports){
+},{}],142:[function(require,module,exports){
 module.exports = function(hljs) {
   var Q_KEYWORDS = {
   keyword:
@@ -15863,7 +14017,7 @@ module.exports = function(hljs) {
      ]
   };
 };
-},{}],151:[function(require,module,exports){
+},{}],143:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = {
       keyword:
@@ -16032,7 +14186,7 @@ module.exports = function(hljs) {
     illegal: /#/
   };
 };
-},{}],152:[function(require,module,exports){
+},{}],144:[function(require,module,exports){
 module.exports = function(hljs) {
   var IDENT_RE = '([a-zA-Z]|\\.[a-zA-Z.])[a-zA-Z0-9._]*';
 
@@ -16102,7 +14256,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],153:[function(require,module,exports){
+},{}],145:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords:
@@ -16129,7 +14283,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],154:[function(require,module,exports){
+},{}],146:[function(require,module,exports){
 module.exports = function(hljs) {
   var IDENTIFIER = '[a-zA-Z-_][^\\n{]+\\{';
 
@@ -16196,7 +14350,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],155:[function(require,module,exports){
+},{}],147:[function(require,module,exports){
 module.exports = // Colors from RouterOS terminal:
 //   green        - #0E9A00
 //   teal         - #0C9A9A
@@ -16355,7 +14509,7 @@ function(hljs) {
     ]
   };
 };
-},{}],156:[function(require,module,exports){
+},{}],148:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords: {
@@ -16391,7 +14545,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],157:[function(require,module,exports){
+},{}],149:[function(require,module,exports){
 module.exports = function(hljs) {
   var RUBY_METHOD_RE = '[a-zA-Z_]\\w*[!?=]?|[-+~]\\@|<<|>>|=~|===?|<=>|[<>]=?|\\*\\*|[-/+%^&*~`|]|\\[\\]=?';
   var RUBY_KEYWORDS = {
@@ -16568,7 +14722,7 @@ module.exports = function(hljs) {
     contains: COMMENT_MODES.concat(IRB_DEFAULT).concat(RUBY_DEFAULT_CONTAINS)
   };
 };
-},{}],158:[function(require,module,exports){
+},{}],150:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords: {
@@ -16629,7 +14783,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],159:[function(require,module,exports){
+},{}],151:[function(require,module,exports){
 module.exports = function(hljs) {
   var NUM_SUFFIX = '([ui](8|16|32|64|128|size)|f(32|64))\?';
   var KEYWORDS =
@@ -16737,7 +14891,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],160:[function(require,module,exports){
+},{}],152:[function(require,module,exports){
 module.exports = function(hljs) {
 
   var ANNOTATION = { className: 'meta', begin: '@[A-Za-z]+' };
@@ -16852,7 +15006,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],161:[function(require,module,exports){
+},{}],153:[function(require,module,exports){
 module.exports = function(hljs) {
   var SCHEME_IDENT_RE = '[^\\(\\)\\[\\]\\{\\}",\'`;#|\\\\\\s]+';
   var SCHEME_SIMPLE_NUMBER_RE = '(\\-|\\+)?\\d+([./]\\d+)?';
@@ -16996,7 +15150,7 @@ module.exports = function(hljs) {
     contains: [SHEBANG, NUMBER, STRING, QUOTED_IDENT, QUOTED_LIST, LIST].concat(COMMENT_MODES)
   };
 };
-},{}],162:[function(require,module,exports){
+},{}],154:[function(require,module,exports){
 module.exports = function(hljs) {
 
   var COMMON_CONTAINS = [
@@ -17050,7 +15204,7 @@ module.exports = function(hljs) {
     ].concat(COMMON_CONTAINS)
   };
 };
-},{}],163:[function(require,module,exports){
+},{}],155:[function(require,module,exports){
 module.exports = function(hljs) {
   var IDENT_RE = '[a-zA-Z-][a-zA-Z0-9_-]*';
   var VARIABLE = {
@@ -17148,7 +15302,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],164:[function(require,module,exports){
+},{}],156:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['console'],
@@ -17163,7 +15317,7 @@ module.exports = function(hljs) {
     ]
   }
 };
-},{}],165:[function(require,module,exports){
+},{}],157:[function(require,module,exports){
 module.exports = function(hljs) {
   var smali_instr_low_prio = ['add', 'and', 'cmp', 'cmpg', 'cmpl', 'const', 'div', 'double', 'float', 'goto', 'if', 'int', 'long', 'move', 'mul', 'neg', 'new', 'nop', 'not', 'or', 'rem', 'return', 'shl', 'shr', 'sput', 'sub', 'throw', 'ushr', 'xor'];
   var smali_instr_high_prio = ['aget', 'aput', 'array', 'check', 'execute', 'fill', 'filled', 'goto/16', 'goto/32', 'iget', 'instance', 'invoke', 'iput', 'monitor', 'packed', 'sget', 'sparse'];
@@ -17219,7 +15373,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],166:[function(require,module,exports){
+},{}],158:[function(require,module,exports){
 module.exports = function(hljs) {
   var VAR_IDENT_RE = '[a-z][a-zA-Z0-9_]*';
   var CHAR = {
@@ -17269,7 +15423,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],167:[function(require,module,exports){
+},{}],159:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['ml'],
@@ -17335,7 +15489,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],168:[function(require,module,exports){
+},{}],160:[function(require,module,exports){
 module.exports = function(hljs) {
   var CPP = hljs.getLanguage('cpp').exports;
 
@@ -17706,7 +15860,7 @@ module.exports = function(hljs) {
     illegal: /#/
   };
 };
-},{}],169:[function(require,module,exports){
+},{}],161:[function(require,module,exports){
 module.exports = function(hljs) {
   var COMMENT_MODE = hljs.COMMENT('--', '$');
   return {
@@ -17866,7 +16020,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],170:[function(require,module,exports){
+},{}],162:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     contains: [
@@ -17949,7 +16103,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],171:[function(require,module,exports){
+},{}],163:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['do', 'ado'],
@@ -17987,7 +16141,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],172:[function(require,module,exports){
+},{}],164:[function(require,module,exports){
 module.exports = function(hljs) {
   var STEP21_IDENT_RE = '[A-Z_][A-Z0-9_.]*';
   var STEP21_KEYWORDS = {
@@ -18034,7 +16188,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],173:[function(require,module,exports){
+},{}],165:[function(require,module,exports){
 module.exports = function(hljs) {
 
   var VARIABLE = {
@@ -18488,7 +16642,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],174:[function(require,module,exports){
+},{}],166:[function(require,module,exports){
 module.exports = function(hljs) {
   var DETAILS = {
     className: 'string',
@@ -18522,7 +16676,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],175:[function(require,module,exports){
+},{}],167:[function(require,module,exports){
 module.exports = function(hljs) {
   var SWIFT_KEYWORDS = {
       keyword: '__COLUMN__ __FILE__ __FUNCTION__ __LINE__ as as! as? associativity ' +
@@ -18639,7 +16793,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],176:[function(require,module,exports){
+},{}],168:[function(require,module,exports){
 module.exports = function(hljs) {
 
   var COMMENT = {
@@ -18683,7 +16837,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],177:[function(require,module,exports){
+},{}],169:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     case_insensitive: true,
@@ -18719,7 +16873,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],178:[function(require,module,exports){
+},{}],170:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['tk'],
@@ -18780,7 +16934,7 @@ module.exports = function(hljs) {
     ]
   }
 };
-},{}],179:[function(require,module,exports){
+},{}],171:[function(require,module,exports){
 module.exports = function(hljs) {
   var COMMAND = {
     className: 'tag',
@@ -18842,7 +16996,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],180:[function(require,module,exports){
+},{}],172:[function(require,module,exports){
 module.exports = function(hljs) {
   var BUILT_IN_TYPES = 'bool byte i16 i32 i64 double string binary';
   return {
@@ -18877,7 +17031,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],181:[function(require,module,exports){
+},{}],173:[function(require,module,exports){
 module.exports = function(hljs) {
   var TPID = {
     className: 'number',
@@ -18961,7 +17115,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],182:[function(require,module,exports){
+},{}],174:[function(require,module,exports){
 module.exports = function(hljs) {
   var PARAMS = {
     className: 'params',
@@ -19027,7 +17181,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],183:[function(require,module,exports){
+},{}],175:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = {
     keyword:
@@ -19183,7 +17337,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],184:[function(require,module,exports){
+},{}],176:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     keywords: {
@@ -19233,7 +17387,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],185:[function(require,module,exports){
+},{}],177:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['vb'],
@@ -19289,7 +17443,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],186:[function(require,module,exports){
+},{}],178:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     subLanguage: 'xml',
@@ -19301,7 +17455,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],187:[function(require,module,exports){
+},{}],179:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     aliases: ['vbs'],
@@ -19340,7 +17494,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],188:[function(require,module,exports){
+},{}],180:[function(require,module,exports){
 module.exports = function(hljs) {
   var SV_KEYWORDS = {
     keyword:
@@ -19439,7 +17593,7 @@ module.exports = function(hljs) {
     ]
   }; // return
 };
-},{}],189:[function(require,module,exports){
+},{}],181:[function(require,module,exports){
 module.exports = function(hljs) {
   // Regular expression for VHDL numeric literals.
 
@@ -19500,7 +17654,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],190:[function(require,module,exports){
+},{}],182:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     lexemes: /[!#@\w]+/,
@@ -19606,7 +17760,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],191:[function(require,module,exports){
+},{}],183:[function(require,module,exports){
 module.exports = function(hljs) {
   return {
     case_insensitive: true,
@@ -19742,7 +17896,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],192:[function(require,module,exports){
+},{}],184:[function(require,module,exports){
 module.exports = function(hljs) {
   var BUILTIN_MODULES =
     'ObjectLoader Animate MovieCredits Slides Filters Shading Materials LensFlare Mapping VLCAudioVideo ' +
@@ -19815,7 +17969,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],193:[function(require,module,exports){
+},{}],185:[function(require,module,exports){
 module.exports = function(hljs) {
   var XML_IDENT_RE = '[A-Za-z0-9\\._:-]+';
   var TAG_INTERNALS = {
@@ -19918,7 +18072,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],194:[function(require,module,exports){
+},{}],186:[function(require,module,exports){
 module.exports = function(hljs) {
   var KEYWORDS = 'for let if while then else return where group by xquery encoding version' +
     'module namespace boundary-space preserve strip default collation base-uri ordering' +
@@ -19989,7 +18143,7 @@ module.exports = function(hljs) {
     contains: CONTAINS
   };
 };
-},{}],195:[function(require,module,exports){
+},{}],187:[function(require,module,exports){
 module.exports = function(hljs) {
   var LITERALS = 'true false yes no null';
 
@@ -20077,7 +18231,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],196:[function(require,module,exports){
+},{}],188:[function(require,module,exports){
 module.exports = function(hljs) {
   var STRING = {
     className: 'string',
@@ -20184,7 +18338,7 @@ module.exports = function(hljs) {
     ]
   };
 };
-},{}],197:[function(require,module,exports){
+},{}],189:[function(require,module,exports){
 /**
  * isMobile.js v0.4.1
  *
@@ -20323,7 +18477,7 @@ module.exports = function(hljs) {
 
 })(this);
 
-},{}],198:[function(require,module,exports){
+},{}],190:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, '__esModule', {
@@ -20490,7 +18644,7 @@ MiniSignal.MiniSignalBinding = MiniSignalBinding;
 exports['default'] = MiniSignal;
 module.exports = exports['default'];
 
-},{}],199:[function(require,module,exports){
+},{}],191:[function(require,module,exports){
 /*
 object-assign
 (c) Sindre Sorhus
@@ -20582,7 +18736,7 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 	return to;
 };
 
-},{}],200:[function(require,module,exports){
+},{}],192:[function(require,module,exports){
 'use strict'
 
 module.exports = function parseURI (str, opts) {
@@ -20614,7 +18768,1538 @@ module.exports = function parseURI (str, opts) {
   return uri
 }
 
-},{}],201:[function(require,module,exports){
+},{}],193:[function(require,module,exports){
+
+/*
+	Copyright © 2001 Robert Penner
+	All rights reserved.
+
+	Redistribution and use in source and binary forms, with or without modification, 
+	are permitted provided that the following conditions are met:
+
+	Redistributions of source code must retain the above copyright notice, this list of 
+	conditions and the following disclaimer.
+	Redistributions in binary form must reproduce the above copyright notice, this list 
+	of conditions and the following disclaimer in the documentation and/or other materials 
+	provided with the distribution.
+
+	Neither the name of the author nor the names of contributors may be used to endorse 
+	or promote products derived from this software without specific prior written permission.
+
+	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY 
+	EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+	MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+	COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+	EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+	GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED 
+	AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+	NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED 
+	OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+(function() {
+  var penner, umd;
+
+  umd = function(factory) {
+    if (typeof exports === 'object') {
+      return module.exports = factory;
+    } else if (typeof define === 'function' && define.amd) {
+      return define([], factory);
+    } else {
+      return this.penner = factory;
+    }
+  };
+
+  penner = {
+    linear: function(t, b, c, d) {
+      return c * t / d + b;
+    },
+    easeInQuad: function(t, b, c, d) {
+      return c * (t /= d) * t + b;
+    },
+    easeOutQuad: function(t, b, c, d) {
+      return -c * (t /= d) * (t - 2) + b;
+    },
+    easeInOutQuad: function(t, b, c, d) {
+      if ((t /= d / 2) < 1) {
+        return c / 2 * t * t + b;
+      } else {
+        return -c / 2 * ((--t) * (t - 2) - 1) + b;
+      }
+    },
+    easeInCubic: function(t, b, c, d) {
+      return c * (t /= d) * t * t + b;
+    },
+    easeOutCubic: function(t, b, c, d) {
+      return c * ((t = t / d - 1) * t * t + 1) + b;
+    },
+    easeInOutCubic: function(t, b, c, d) {
+      if ((t /= d / 2) < 1) {
+        return c / 2 * t * t * t + b;
+      } else {
+        return c / 2 * ((t -= 2) * t * t + 2) + b;
+      }
+    },
+    easeInQuart: function(t, b, c, d) {
+      return c * (t /= d) * t * t * t + b;
+    },
+    easeOutQuart: function(t, b, c, d) {
+      return -c * ((t = t / d - 1) * t * t * t - 1) + b;
+    },
+    easeInOutQuart: function(t, b, c, d) {
+      if ((t /= d / 2) < 1) {
+        return c / 2 * t * t * t * t + b;
+      } else {
+        return -c / 2 * ((t -= 2) * t * t * t - 2) + b;
+      }
+    },
+    easeInQuint: function(t, b, c, d) {
+      return c * (t /= d) * t * t * t * t + b;
+    },
+    easeOutQuint: function(t, b, c, d) {
+      return c * ((t = t / d - 1) * t * t * t * t + 1) + b;
+    },
+    easeInOutQuint: function(t, b, c, d) {
+      if ((t /= d / 2) < 1) {
+        return c / 2 * t * t * t * t * t + b;
+      } else {
+        return c / 2 * ((t -= 2) * t * t * t * t + 2) + b;
+      }
+    },
+    easeInSine: function(t, b, c, d) {
+      return -c * Math.cos(t / d * (Math.PI / 2)) + c + b;
+    },
+    easeOutSine: function(t, b, c, d) {
+      return c * Math.sin(t / d * (Math.PI / 2)) + b;
+    },
+    easeInOutSine: function(t, b, c, d) {
+      return -c / 2 * (Math.cos(Math.PI * t / d) - 1) + b;
+    },
+    easeInExpo: function(t, b, c, d) {
+      if (t === 0) {
+        return b;
+      } else {
+        return c * Math.pow(2, 10 * (t / d - 1)) + b;
+      }
+    },
+    easeOutExpo: function(t, b, c, d) {
+      if (t === d) {
+        return b + c;
+      } else {
+        return c * (-Math.pow(2, -10 * t / d) + 1) + b;
+      }
+    },
+    easeInOutExpo: function(t, b, c, d) {
+      if (t === 0) {
+        b;
+      }
+      if (t === d) {
+        b + c;
+      }
+      if ((t /= d / 2) < 1) {
+        return c / 2 * Math.pow(2, 10 * (t - 1)) + b;
+      } else {
+        return c / 2 * (-Math.pow(2, -10 * --t) + 2) + b;
+      }
+    },
+    easeInCirc: function(t, b, c, d) {
+      return -c * (Math.sqrt(1 - (t /= d) * t) - 1) + b;
+    },
+    easeOutCirc: function(t, b, c, d) {
+      return c * Math.sqrt(1 - (t = t / d - 1) * t) + b;
+    },
+    easeInOutCirc: function(t, b, c, d) {
+      if ((t /= d / 2) < 1) {
+        return -c / 2 * (Math.sqrt(1 - t * t) - 1) + b;
+      } else {
+        return c / 2 * (Math.sqrt(1 - (t -= 2) * t) + 1) + b;
+      }
+    },
+    easeInElastic: function(t, b, c, d) {
+      var a, p, s;
+      s = 1.70158;
+      p = 0;
+      a = c;
+      if (t === 0) {
+        b;
+      } else if ((t /= d) === 1) {
+        b + c;
+      }
+      if (!p) {
+        p = d * .3;
+      }
+      if (a < Math.abs(c)) {
+        a = c;
+        s = p / 4;
+      } else {
+        s = p / (2 * Math.PI) * Math.asin(c / a);
+      }
+      return -(a * Math.pow(2, 10 * (t -= 1)) * Math.sin((t * d - s) * (2 * Math.PI) / p)) + b;
+    },
+    easeOutElastic: function(t, b, c, d) {
+      var a, p, s;
+      s = 1.70158;
+      p = 0;
+      a = c;
+      if (t === 0) {
+        b;
+      } else if ((t /= d) === 1) {
+        b + c;
+      }
+      if (!p) {
+        p = d * .3;
+      }
+      if (a < Math.abs(c)) {
+        a = c;
+        s = p / 4;
+      } else {
+        s = p / (2 * Math.PI) * Math.asin(c / a);
+      }
+      return a * Math.pow(2, -10 * t) * Math.sin((t * d - s) * (2 * Math.PI) / p) + c + b;
+    },
+    easeInOutElastic: function(t, b, c, d) {
+      var a, p, s;
+      s = 1.70158;
+      p = 0;
+      a = c;
+      if (t === 0) {
+        b;
+      } else if ((t /= d / 2) === 2) {
+        b + c;
+      }
+      if (!p) {
+        p = d * (.3 * 1.5);
+      }
+      if (a < Math.abs(c)) {
+        a = c;
+        s = p / 4;
+      } else {
+        s = p / (2 * Math.PI) * Math.asin(c / a);
+      }
+      if (t < 1) {
+        return -.5 * (a * Math.pow(2, 10 * (t -= 1)) * Math.sin((t * d - s) * (2 * Math.PI) / p)) + b;
+      } else {
+        return a * Math.pow(2, -10 * (t -= 1)) * Math.sin((t * d - s) * (2 * Math.PI) / p) * .5 + c + b;
+      }
+    },
+    easeInBack: function(t, b, c, d, s) {
+      if (s === void 0) {
+        s = 1.70158;
+      }
+      return c * (t /= d) * t * ((s + 1) * t - s) + b;
+    },
+    easeOutBack: function(t, b, c, d, s) {
+      if (s === void 0) {
+        s = 1.70158;
+      }
+      return c * ((t = t / d - 1) * t * ((s + 1) * t + s) + 1) + b;
+    },
+    easeInOutBack: function(t, b, c, d, s) {
+      if (s === void 0) {
+        s = 1.70158;
+      }
+      if ((t /= d / 2) < 1) {
+        return c / 2 * (t * t * (((s *= 1.525) + 1) * t - s)) + b;
+      } else {
+        return c / 2 * ((t -= 2) * t * (((s *= 1.525) + 1) * t + s) + 2) + b;
+      }
+    },
+    easeInBounce: function(t, b, c, d) {
+      var v;
+      v = penner.easeOutBounce(d - t, 0, c, d);
+      return c - v + b;
+    },
+    easeOutBounce: function(t, b, c, d) {
+      if ((t /= d) < 1 / 2.75) {
+        return c * (7.5625 * t * t) + b;
+      } else if (t < 2 / 2.75) {
+        return c * (7.5625 * (t -= 1.5 / 2.75) * t + .75) + b;
+      } else if (t < 2.5 / 2.75) {
+        return c * (7.5625 * (t -= 2.25 / 2.75) * t + .9375) + b;
+      } else {
+        return c * (7.5625 * (t -= 2.625 / 2.75) * t + .984375) + b;
+      }
+    },
+    easeInOutBounce: function(t, b, c, d) {
+      var v;
+      if (t < d / 2) {
+        v = penner.easeInBounce(t * 2, 0, c, d);
+        return v * .5 + b;
+      } else {
+        v = penner.easeOutBounce(t * 2 - d, 0, c, d);
+        return v * .5 + c * .5 + b;
+      }
+    }
+  };
+
+  umd(penner);
+
+}).call(this);
+
+},{}],194:[function(require,module,exports){
+const list = require('./src/list')
+
+module.exports = {
+    list,
+    wait: require('./src/wait'),
+    to: require('./src/to'),
+    shake: require('./src/shake'),
+    tint: require('./src/tint'),
+    face: require('./src/face'),
+    angle: require('./src/angle'),
+    target: require('./src/target'),
+    movie: require('./src/movie'),
+    load: require('./src/load'),
+
+    default: new list()
+}
+},{"./src/angle":195,"./src/face":196,"./src/list":197,"./src/load":198,"./src/movie":199,"./src/shake":200,"./src/target":201,"./src/tint":202,"./src/to":203,"./src/wait":204}],195:[function(require,module,exports){
+const wait = require('./wait')
+
+/** animate object's {x, y} using an angle */
+module.exports = class angle extends wait
+{
+    /**
+     * @param {object} object to animate
+     * @param {number} angle in radians
+     * @param {number} speed in pixels/millisecond
+     * @param {number} [duration=0] in milliseconds; if 0, then continues forever
+     * @param {object} [options] @see {@link Wait}
+     */
+    constructor(object, angle, speed, duration, options)
+    {
+        options = options || {}
+        super(object, options)
+        this.type = 'Angle'
+        if (options.load)
+        {
+            this.load(options.load)
+        }
+        else
+        {
+            this.angle = angle
+            this.speed = speed
+            this.duration = duration || 0
+        }
+    }
+
+    save()
+    {
+        if (this.options.cancel)
+        {
+            return null
+        }
+        const save = super.save()
+        save.angle = this.angle
+        save.speed = this.speed
+        return save
+    }
+
+    load(load)
+    {
+        super.load(load)
+        this.angle = load.angle
+        this.speed = load.speed
+    }
+
+    get angle()
+    {
+        return this._angle
+    }
+    set angle(value)
+    {
+        this._angle = value
+        this.sin = Math.sin(this._angle)
+        this.cos = Math.cos(this._angle)
+    }
+
+    calculate(elapsed)
+    {
+        this.object.x += this.cos * elapsed * this.speed
+        this.object.y += this.sin * elapsed * this.speed
+    }
+
+    reverse()
+    {
+        this.angle += Math.PI
+    }
+}
+},{"./wait":204}],196:[function(require,module,exports){
+const Angle = require('yy-angle')
+const wait = require('./wait')
+
+/** Rotates an object to face the target */
+module.exports = class face extends wait
+{
+    /**
+     * @param {object} object
+     * @param {Point} target
+     * @param {number} speed in radians/millisecond
+     * @param {object} [options] @see {@link Wait}
+     * @param {boolean} [options.keepAlive] don't stop animation when complete
+     */
+    constructor(object, target, speed, options)
+    {
+        options = options || {}
+        super(object, options)
+        this.type = 'Face'
+        this.target = target
+        if (options.load)
+        {
+            this.load(options.load)
+        }
+        else
+        {
+            this.speed = speed
+        }
+    }
+
+    save()
+    {
+        if (this.options.cancel)
+        {
+            return null
+        }
+        const save = super.save()
+        save.speed = this.speed
+        save.keepAlive = this.options.keepAlive
+        return save
+    }
+
+    load(load)
+    {
+        super.load(load)
+        this.speed = load.speed
+        this.options.keepAlive = load.keepAlive
+    }
+
+    calculate(elapsed)
+    {
+        var angle = Angle.angleTwoPoints(this.object.position, this.target)
+        var difference = Angle.differenceAngles(angle, this.object.rotation)
+        if (difference === 0)
+        {
+            this.emit('done', this.object)
+            if (!this.options.keepAlive)
+            {
+                return true
+            }
+        }
+        else
+        {
+            var sign = Angle.differenceAnglesSign(angle, this.object.rotation)
+            var change = this.speed * elapsed
+            var delta = (change > difference) ? difference : change
+            this.object.rotation += delta * sign
+        }
+    }
+}
+},{"./wait":204,"yy-angle":402}],197:[function(require,module,exports){
+const Loop = require('yy-loop')
+
+const Angle = require('./angle')
+const Face = require('./face')
+const Load = require('./load')
+const Movie = require('./movie')
+const Shake = require('./shake')
+const Target = require('./target')
+const Tint = require('./tint')
+const To = require('./to')
+const Wait = require('./wait')
+
+/** Helper list for multiple animations */
+module.exports = class List extends Loop
+{
+    /**
+     * @param [options]
+     * @param {number} [options.maxFrameTime=1000 / 60] maximum time in milliseconds for a frame
+     * @param {object} [options.pauseOnBlur] pause loop when app loses focus, start it when app regains focus
+     * @event List#done(List) final animation completed in the list
+     * @event List#each(elapsed, List) each update
+     */
+    constructor(options)
+    {
+        options = options || {}
+        super(options)
+        this.empty = true
+    }
+
+    /**
+     * Add animation(s) to animation list
+     * @param {object|object[]...} any animation class
+     */
+    add()
+    {
+        for (let arg of arguments)
+        {
+            if (Array.isArray(arg))
+            {
+                for (let entry of arg)
+                {
+                    this.list.push(entry)
+                }
+            }
+            else
+            {
+                this.list.push(arg)
+            }
+        }
+        this.empty = false
+        return arguments[0]
+    }
+
+    /**
+     * remove animation(s)
+     * @param {object|array} animate - the animation (or array of animations) to remove; can be null
+     * @inherited from yy-loop
+     */
+    // remove(animate)
+
+    /**
+     * remove all animations from list
+     * @inherited from yy-loop
+     */
+    // removeAll()
+
+    /**
+     * update frame; can be called manually or automatically with start()
+     */
+    update()
+    {
+        super.update()
+        if (this.list.length === 0 && !this.empty)
+        {
+            this.emit('done', this)
+            this.empty = true
+        }
+    }
+
+    /**
+     * @type {number} number of animations
+     * @inherited yy-looop
+     */
+    // get count()
+
+    /**
+     * @type {number} number of active animations
+     * @inherited yy-looop
+     */
+    // get countRunning()
+
+    /**
+     * starts an automatic requestAnimationFrame() loop based on yy-loop
+     * alternatively, you can call update() manually
+     * @inherited yy-loop
+     */
+    // start()
+
+    /**
+     * stops the automatic requestAnimationFrame() loop
+     * @inherited yy-loop
+     */
+    // stop()
+
+    /** helper to add to the list a new Ease.to class; see Ease.to class below for parameters */
+    to() { return this.add(new To(...arguments)) }
+
+    /** helper to add to the list a new Ease.angle class; see Ease.to class below for parameters */
+    angle() { return this.add(new Angle(...arguments)) }
+
+    /** helper to add to the list a new Ease.face class; see Ease.to class below for parameters */
+    face() { return this.add(new Face(...arguments)) }
+
+    /** helper to add to the list a new Ease.load class; see Ease.to class below for parameters */
+    load() { return this.add(new Load(...arguments)) }
+
+    /** helper to add to the list a new Ease.movie class; see Ease.to class below for parameters */
+    movie() { return this.add(new Movie(...arguments)) }
+
+    /** helper to add to the list a new Ease.shake class; see Ease.to class below for parameters */
+    shake() { return this.add(new Shake(...arguments)) }
+
+    /** helper to add to the list a new Ease.target class; see Ease.to class below for parameters */
+    target() { return this.add(new Target(...arguments)) }
+
+    /** helper to add to the list a new Ease.angle tint; see Ease.to class below for parameters */
+    tint() { return this.add(new Tint(...arguments)) }
+
+    /** helper to add to the list a new Ease.wait class; see Ease.to class below for parameters */
+    wait() { return this.add(new Wait(...arguments)) }
+
+    /** Inherited functions from yy-loop */
+
+    /**
+     * adds an interval
+     * @param {function} callback
+     * @param {number} time
+     * @param {number} count
+     * @inherited from yy-loop
+     */
+    // interval(callback, time, count)
+
+    /**
+     * adds a timeout
+     * @param {function} callback
+     * @param {number} time
+     * @inherited from yy-loop
+     */
+    // timeout(callback, time)
+}
+},{"./angle":195,"./face":196,"./load":198,"./movie":199,"./shake":200,"./target":201,"./tint":202,"./to":203,"./wait":204,"yy-loop":407}],198:[function(require,module,exports){
+const wait = require('./wait')
+const to = require('./to')
+const tint = require('./tint')
+const shake = require('./shake')
+const angle = require('./angle')
+const face = require('./face')
+const target = require('./target')
+const movie = require('./movie')
+
+/**
+ * restart an animation = requires a saved state
+ * @param {object} object(s) to animate
+ */
+module.exports = function load(object, load)
+{
+    if (!load)
+    {
+        return null
+    }
+    const options = { load }
+    switch (load.type)
+    {
+        case 'Wait':
+            return new wait(object, options)
+        case 'To':
+            return new to(object, null, null, options)
+        case 'Tint':
+            return new tint(object, null, null, options)
+        case 'Shake':
+            return new shake(object, null, null, options)
+        case 'Angle':
+            return new angle(object, null, null, null, options)
+        case 'Face':
+            return new face(object[0], object[1], null, options)
+        case 'Target':
+            return new target(object[0], object[1], null, options)
+        case 'Movie':
+            return new movie(object, object[1], null, options)
+    }
+}
+},{"./angle":195,"./face":196,"./movie":199,"./shake":200,"./target":201,"./tint":202,"./to":203,"./wait":204}],199:[function(require,module,exports){
+const wait = require('./wait')
+
+/**
+ * animate a movie of textures
+ */
+module.exports = class movie extends wait
+{
+    /**
+     * @param {object} object to animate
+     * @param {PIXI.Texture[]} textures
+     * @param {number} [duration=0] time to run (use 0 for infinite duration--should only be used with customized easing functions)
+     * @param {object} [options]
+     * @param {number} [options.wait=0] n milliseconds before starting animation (can also be used to pause animation for a length of time)
+     * @param {boolean} [options.pause] start the animation paused
+     * @param {(boolean|number)} [options.repeat] true: repeat animation forever n: repeat animation n times
+     * @param {(boolean|number)} [options.reverse] true: reverse animation (if combined with repeat, then pulse) n: reverse animation n times
+     * @param {(boolean|number)} [options.continue] true: continue animation with new starting values n: continue animation n times
+     * @param {Function} [options.load] loads an animation using a .save() object note the * parameters below cannot be loaded and must be re-set
+     * @param {Function} [options.ease] function from easing.js (see http://easings.net for examples)
+     * @emits {done} animation expires
+     * @emits {cancel} animation is cancelled
+     * @emits {wait} each update during a wait
+     * @emits {first} first update when animation starts
+     * @emits {each} each update while animation is running
+     * @emits {loop} when animation is repeated
+     * @emits {reverse} when animation is reversed
+     */
+    constructor(object, textures, duration, options)
+    {
+        options = options || {}
+        super(object, options)
+        this.type = 'Movie'
+        if (Array.isArray(object))
+        {
+            this.list = object
+            this.object = this.list[0]
+        }
+        this.ease = options.ease || this.noEase
+        if (options.load)
+        {
+            this.load(options.load)
+        }
+        else
+        {
+            this.textures = textures
+            this.duration = duration
+            this.current = 0
+            this.length = textures.length
+            this.interval = duration / this.length
+            this.isReverse = false
+            this.restart()
+        }
+    }
+
+    save()
+    {
+        if (this.options.cancel)
+        {
+            return null
+        }
+        const save = super.save()
+        save.goto = this.goto
+        save.current = this.current
+        save.length = this.length
+        save.interval = this.interval
+        return save
+    }
+
+    load(load)
+    {
+        super.load(load)
+        this.goto = load.goto
+        this.current = load.current
+        this.interval = load.current
+    }
+
+    restart()
+    {
+        this.current = 0
+        this.time = 0
+        this.isReverse = false
+    }
+
+    reverse()
+    {
+        this.isReverse = !this.isReverse
+    }
+
+    calculate()
+    {
+        let index = Math.round(this.ease(this.time, 0, this.length - 1, this.duration))
+        if (this.isReverse)
+        {
+            index = this.length - 1 - index
+        }
+        if (this.list)
+        {
+            for (let i = 0; i < this.list.length; i++)
+            {
+                this.list[i].texture = this.textures[index]
+            }
+        }
+        else
+        {
+            this.object.texture = this.textures[index]
+        }
+    }
+}
+},{"./wait":204}],200:[function(require,module,exports){
+const wait = require('./wait')
+
+/**
+ * shakes an object or list of objects
+ */
+module.exports = class shake extends wait
+{
+    /**
+     * @param {object|array} object or list of objects to shake
+     * @param {number} amount to shake
+     * @param {number} duration (in milliseconds) to shake
+     * @param {object} options (see Animate.wait)
+     */
+    constructor(object, amount, duration, options)
+    {
+        options = options || {}
+        super(object, options)
+        this.type = 'Shake'
+        if (Array.isArray(object))
+        {
+            this.array = true
+            this.list = object
+        }
+        if (options.load)
+        {
+            this.load(options.load)
+        }
+        else
+        {
+            if (this.list)
+            {
+                this.start = []
+                for (let i = 0; i < object.length; i++)
+                {
+                    const target = object[i]
+                    this.start[i] = {x: target.x, y: target.y}
+                }
+            }
+            else
+            {
+                this.start = {x: object.x, y: object.y}
+            }
+            this.amount = amount
+            this.duration = duration
+        }
+    }
+
+    save()
+    {
+        if (this.options.cancel)
+        {
+            return null
+        }
+        const save = super.save()
+        save.start = this.start
+        save.amount = this.amount
+        return save
+    }
+
+    load(load)
+    {
+        super.load(load)
+        this.start = load.start
+        this.amount = load.amount
+    }
+
+    calculate(/*elapsed*/)
+    {
+        const object = this.object
+        const start = this.start
+        const amount = this.amount
+        if (this.array)
+        {
+            const list = this.list
+            for (let i = 0; i < list.length; i++)
+            {
+                const object = list[i]
+                const actual = start[i]
+                object.x = actual.x + Math.floor(Math.random() * amount * 2) - amount
+                object.y = actual.y + Math.floor(Math.random() * amount * 2) - amount
+            }
+        }
+        object.x = start.x + Math.floor(Math.random() * amount * 2) - amount
+        object.y = start.y + Math.floor(Math.random() * amount * 2) - amount
+    }
+
+    done()
+    {
+        const object = this.object
+        const start = this.start
+        if (this.array)
+        {
+            const list = this.list
+            for (let i = 0; i < list.length; i++)
+            {
+                const object = list[i]
+                const actual = start[i]
+                object.x = actual.x
+                object.y = actual.y
+            }
+        }
+        else
+        {
+            object.x = start.x
+            object.y = start.y
+        }
+    }
+}
+},{"./wait":204}],201:[function(require,module,exports){
+const wait = require('./wait')
+
+/** move an object to a target's location */
+module.exports = class target extends wait
+{
+    /**
+     * move to a target
+     * @param {object} object - object to animate
+     * @param {object} target - object needs to contain {x: x, y: y}
+     * @param {number} speed - number of pixels to move per millisecond
+     * @param {object} [options] @see {@link Wait}
+     * @param {boolean} [options.keepAlive] don't cancel the animation when target is reached
+     */
+    constructor(object, target, speed, options)
+    {
+        options = options || {}
+        super(object, options)
+        this.type = 'Target'
+        this.target = target
+        if (options.load)
+        {
+            this.load(options.load)
+        }
+        else
+        {
+            this.speed = speed
+        }
+    }
+
+    save()
+    {
+        if (this.options.cancel)
+        {
+            return null
+        }
+        const save = super.save()
+        save.speed = this.speed
+        save.keepAlive = this.options.keepAlive
+        return save
+    }
+
+    load(load)
+    {
+        super.load(load)
+        this.speed = load.speed
+        this.options.keepAlive = load.keepAlive
+    }
+
+    calculate(elapsed)
+    {
+        const deltaX = this.target.x - this.object.x
+        const deltaY = this.target.y - this.object.y
+        if (deltaX === 0 && deltaY === 0)
+        {
+            this.emit('done', this.object)
+            if (!this.options.keepAlive)
+            {
+                return true
+            }
+        }
+        else
+        {
+            const angle = Math.atan2(deltaY, deltaX)
+            this.object.x += Math.cos(angle) * elapsed * this.speed
+            this.object.y += Math.sin(angle) * elapsed * this.speed
+            if ((deltaX >= 0) !== ((this.target.x - this.object.x) >= 0))
+            {
+                this.object.x = this.target.x
+            }
+            if ((deltaY >= 0) !== ((this.target.y - this.object.y) >= 0))
+            {
+                this.object.y = this.target.y
+            }
+        }
+    }
+}
+},{"./wait":204}],202:[function(require,module,exports){
+const Color = require('yy-color')
+const wait = require('./wait')
+
+/** changes the tint of an object */
+module.exports = class tint extends wait
+{
+    /**
+     * @param {PIXI.DisplayObject|PIXI.DisplayObject[]} object
+     * @param {number|number[]} tint
+     * @param {number} [duration] in milliseconds
+     * @param {object} [options] @see {@link Wait}
+     */
+    constructor(object, tint, duration, options)
+    {
+        options = options || {}
+        super(object, options)
+        this.type = 'Tint'
+        if (Array.isArray(object))
+        {
+            this.list = object
+            this.object = this.list[0]
+        }
+        this.duration = duration
+        this.ease = this.options.ease || this.noEase
+        if (options.load)
+        {
+            this.load(options.load)
+        }
+        else if (Array.isArray(tint))
+        {
+            this.tints = [this.object.tint, ...tint]
+        }
+        else
+        {
+            this.start = this.object.tint
+            this.to = tint
+        }
+    }
+
+    save()
+    {
+        if (this.options.cancel)
+        {
+            return null
+        }
+        const save = super.save()
+        save.start = this.start
+        save.to = this.to
+        return save
+    }
+
+    load(load)
+    {
+        super.load(load)
+        this.start = load.start
+        this.to = load.to
+    }
+
+    calculate()
+    {
+        const percent = this.ease(this.time, 0, 1, this.duration)
+        if (this.tints)
+        {
+            const each = 1 / (this.tints.length - 1)
+            let per = each
+            for (let i = 1; i < this.tints.length; i++)
+            {
+                if (percent <= per)
+                {
+                    const color = Color.blend(1 - (per - percent) / each, this.tints[i - 1], this.tints[i])
+                    if (this.list)
+                    {
+                        for (let object of this.list)
+                        {
+                            object.tint = color
+                        }
+                    }
+                    else
+                    {
+                        this.object.tint = color
+                    }
+                    break;
+                }
+                per += each
+            }
+        }
+        else
+        {
+            const color = Color.blend(percent, this.start, this.to)
+            if (this.list)
+            {
+                for (let object of this.list)
+                {
+                    object.tint = color
+                }
+            }
+            else
+            {
+                this.object.tint = color
+            }
+        }
+    }
+
+    reverse()
+    {
+        if (this.tints)
+        {
+            const tints = []
+            for (let i = this.tints.length - 1; i >= 0; i--)
+            {
+                tints.push(this.tints[i])
+            }
+            this.tints = tints
+        }
+        else
+        {
+            const swap = this.to
+            this.to = this.start
+            this.start = swap
+        }
+    }
+}
+},{"./wait":204,"yy-color":403}],203:[function(require,module,exports){
+const wait = require('./wait')
+
+/** animate any numeric parameter of an object or array of objects */
+module.exports = class to extends wait
+{
+    /**
+     * @param {object} object to animate
+     * @param {object} goto - parameters to animate, e.g.: {alpha: 5, scale: {3, 5}, scale: 5, rotation: Math.PI}
+     * @param {number} duration - time to run
+     * @param {object} [options]
+     * @param {number} [options.wait=0] n milliseconds before starting animation (can also be used to pause animation for a length of time)
+     * @param {boolean} [options.pause] start the animation paused
+     * @param {boolean|number} [options.repeat] true: repeat animation forever n: repeat animation n times
+     * @param {boolean|number} [options.reverse] true: reverse animation (if combined with repeat, then pulse) n: reverse animation n times
+     * @param {boolean|number} [options.continue] true: continue animation with new starting values n: continue animation n times
+     * @param {Function} [options.load] loads an animation using an .save() object note the * parameters below cannot be loaded and must be re-set
+     * @param {string|Function} [options.ease] name or function from easing.js (see http://easings.net for examples)
+     * @emits to:done animation expires
+     * @emits to:cancel animation is cancelled
+     * @emits to:wait each update during a wait
+     * @emits to:first first update when animation starts
+     * @emits to:each each update while animation is running
+     * @emits to:loop when animation is repeated
+     * @emits to:reverse when animation is reversed
+     */
+    constructor(object, goto, duration, options)
+    {
+        options = options || {}
+        super(object, options)
+        this.type = 'To'
+        if (Array.isArray(object))
+        {
+            this.list = object
+            this.object = this.list[0]
+        }
+        this.ease = options.ease || this.noEase
+        if (options.load)
+        {
+            this.load(options.load)
+        }
+        else
+        {
+            this.goto = goto
+            this.fixScale()
+            this.duration = duration
+            this.restart()
+        }
+    }
+
+    /**
+     * converts scale from { scale: n } to { scale: { x: n, y: n }}
+     * @private
+     */
+    fixScale()
+    {
+        if (typeof this.goto['scale'] !== 'undefined' && !Number.isNaN(this.goto['scale']))
+        {
+            this.goto['scale'] = {x: this.goto['scale'], y: this.goto['scale']}
+        }
+    }
+
+    save()
+    {
+        if (this.options.cancel)
+        {
+            return null
+        }
+        const save = super.save()
+        save.goto = this.goto
+        save.start = this.start
+        save.delta = this.delta
+        save.keys = this.keys
+        return save
+    }
+
+    load(load)
+    {
+        super.load(load)
+        this.goto = load.goto
+        this.start = load.start
+        this.delta = load.delta
+        this.keys = load.keys
+    }
+
+    restart()
+    {
+        let i = 0
+        const start = this.start = []
+        const delta = this.delta = []
+        const keys = this.keys = []
+        const goto = this.goto
+        const object = this.object
+
+        // loops through all keys in goto object
+        for (let key in goto)
+        {
+
+            // handles keys with one additional level e.g.: goto = {scale: {x: 5, y: 3}}
+            if (isNaN(goto[key]))
+            {
+                keys[i] = {key: key, children: []}
+                start[i] = []
+                delta[i] = []
+                let j = 0
+                for (let key2 in goto[key])
+                {
+                    keys[i].children[j] = key2
+                    start[i][j] = parseFloat(object[key][key2])
+                    start[i][j] = this._correctDOM(key2, start[i][j])
+                    start[i][j] = isNaN(this.start[i][j]) ? 0 : start[i][j]
+                    delta[i][j] = goto[key][key2] - start[i][j]
+                    j++
+                }
+            }
+            else
+            {
+                start[i] = parseFloat(object[key])
+                start[i] = this._correctDOM(key, start[i])
+                start[i] = isNaN(this.start[i]) ? 0 : start[i]
+                delta[i] = goto[key] - start[i]
+                keys[i] = key
+            }
+            i++
+        }
+        this.time = 0
+    }
+
+    reverse()
+    {
+        const object = this.object
+        const keys = this.keys
+        const goto = this.goto
+        const delta = this.delta
+        const start = this.start
+
+        for (let i = 0; i < keys.length; i++)
+        {
+            const key = keys[i]
+            if (isNaN(goto[key]))
+            {
+                for (let j = 0; j < key.children.length; j++)
+                {
+                    delta[i][j] = -delta[i][j]
+                    start[i][j] = parseFloat(object[key.key][key.children[j]])
+                    start[i][j] = isNaN(start[i][j]) ? 0 : start[i][j]
+                }
+            }
+            else
+            {
+                delta[i] = -delta[i]
+                start[i] = parseFloat(object[key])
+                start[i] = isNaN(start[i]) ? 0 : start[i]
+            }
+        }
+    }
+
+    continue()
+    {
+        const object = this.object
+        const keys = this.keys
+        const goto = this.goto
+        const start = this.start
+
+        for (let i = 0; i < keys.length; i++)
+        {
+            const key = keys[i]
+            if (isNaN(goto[key]))
+            {
+                for (let j = 0; j < key.children.length; j++)
+                {
+                    this.start[i][j] = parseFloat(object[key.key][key.children[j]])
+                    this.start[i][j] = isNaN(start[i][j]) ? 0 : start[i][j]
+                }
+            }
+            else
+            {
+                start[i] = parseFloat(object[key])
+                start[i] = isNaN(start[i]) ? 0 : start[i]
+            }
+        }
+    }
+
+    calculate(/*elapsed*/)
+    {
+        const object = this.object
+        const list = this.list
+        const keys = this.keys
+        const goto = this.goto
+        const time = this.time
+        const start = this.start
+        const delta = this.delta
+        const duration = this.duration
+        const ease = this.ease
+        for (let i = 0; i < this.keys.length; i++)
+        {
+            const key = keys[i]
+            if (isNaN(goto[key]))
+            {
+                const key1 = key.key
+                for (let j = 0; j < key.children.length; j++)
+                {
+                    const key2 = key.children[j]
+                    const others = object[key1][key2] = (time >= duration) ? start[i][j] + delta[i][j] : ease(time, start[i][j], delta[i][j], duration)
+                    if (list)
+                    {
+                        for (let k = 1; k < list.length; k++)
+                        {
+                            list[k][key1][key2] = others
+                        }
+                    }
+                }
+            }
+            else
+            {
+                const key = keys[i]
+                const others = object[key] = (time >= duration) ? start[i] + delta[i] : ease(time, start[i], delta[i], duration)
+                if (list)
+                {
+                    for (let j = 1; j < this.list.length; j++)
+                    {
+                        list[j][key] = others
+                    }
+                }
+            }
+        }
+    }
+}
+},{"./wait":204}],204:[function(require,module,exports){
+const Easing = require('penner')
+const EventEmitter = require('eventemitter3')
+
+module.exports = class wait extends EventEmitter
+{
+    /**
+     * @param {object|object[]} object or list of objects to animate
+     * @param {object} [options]
+     * @param {number} [options.wait=0] n milliseconds before starting animation (can also be used to pause animation for a length of time)
+     * @param {boolean} [options.pause] start the animation paused
+     * @param {(boolean|number)} [options.repeat] true: repeat animation forever n: repeat animation n times
+     * @param {(boolean|number)} [options.reverse] true: reverse animation (if combined with repeat, then pulse) n: reverse animation n times
+     * @param {(boolean|number)} [options.continue] true: continue animation with new starting values n: continue animation n times
+     * @param {number} [options.id] user-generated id (e.g., I use it to properly load animations when an object has multiple animations running)
+     * @param {boolean} [options.orphan] delete animation if .parent of object (or first object in list) is null
+     * @param {Function} [options.load] loads an animation using an .save() object note the * parameters below cannot be loaded and must be re-set
+     * @param {Function|string} [options.ease] function (or penner function name) from easing.js (see http://easings.net for examples)*
+     * @emits {done} animation expires
+     * @emits {cancel} animation is cancelled
+     * @emits {wait} each update during a wait
+     * @emits {first} first update when animation starts
+     * @emits {each} each update while animation is running
+     * @emits {loop} when animation is repeated
+     * @emits {reverse} when animation is reversed
+     */
+    constructor(object, options)
+    {
+        super()
+        this.object = object
+        this.options = options || {}
+        this.type = 'Wait'
+        if (this.options.load)
+        {
+            this.load(this.options.load)
+        }
+        else
+        {
+            this.time = 0
+        }
+        if (this.options.ease && typeof this.options.ease !== 'function')
+        {
+            this.options.ease = Easing[this.options.ease]
+        }
+        if (!this.options.ease)
+        {
+            this.options.ease = Easing['linear']
+        }
+    }
+
+    save()
+    {
+        if (this.options.cancel)
+        {
+            return null
+        }
+        const save = {type: this.type, time: this.time, duration: this.duration}
+        const options = this.options
+        if (options.wait)
+        {
+            save.wait = options.wait
+        }
+        if (typeof options.id !== 'undefined')
+        {
+            save.id = options.id
+        }
+        if (options.pause)
+        {
+            save.pause = options.pause
+        }
+        if (options.repeat)
+        {
+            save.repeat = options.repeat
+        }
+        if (options.reverse)
+        {
+            save.reverse = options.reverse
+        }
+        if (options.continue)
+        {
+            save.continue = options.continue
+        }
+        if (options.cancel)
+        {
+            save.cancel = options.cancel
+        }
+        return save
+    }
+
+    load(load)
+    {
+        this.options.wait = load.wait
+        this.options.pause = load.pause
+        this.options.repeat = load.repeat
+        this.options.reverse = load.reverse
+        this.options.continue = load.continue
+        this.options.cancel = load.cancel
+        this.options.id = load.id
+        this.time = load.time
+        this.duration = load.duration
+    }
+
+    /**
+     * @type {boolean} pause this entry
+     */
+    set pause(value)
+    {
+        this.options.pause = value
+    }
+    get pause()
+    {
+        return this.options.pause
+    }
+
+    cancel()
+    {
+        this.options.cancel = true
+    }
+
+    done()
+    {
+    }
+
+    end(leftOver)
+    {
+        if (this.options.reverse)
+        {
+            this.reverse()
+            this.time = leftOver
+            if (!this.options.repeat)
+            {
+                if (this.options.reverse === true)
+                {
+                    this.options.reverse = false
+                }
+                else
+                {
+                    this.options.reverse--
+                }
+            }
+            else
+            {
+                if (this.options.repeat !== true)
+                {
+                    this.options.repeat--
+                }
+            }
+            this.emit('loop', this.list || this.object)
+        }
+        else if (this.options.repeat)
+        {
+            this.time = leftOver
+            if (this.options.repeat !== true)
+            {
+                this.options.repeat--
+            }
+            this.emit('loop', this.list || this.object)
+        }
+        else if (this.options.continue)
+        {
+            this.continue()
+            this.time = leftOver
+            if (this.options.continue !== true)
+            {
+                this.options.continue--
+            }
+            this.emit('loop', this.list || this.object)
+        }
+        else
+        {
+            this.done()
+            this.emit('done', this.list || this.object, leftOver)
+            this.list = this.object = null
+            return true
+        }
+    }
+
+    update(elapsed)
+    {
+        if (!this.options)
+        {
+            return
+        }
+        if (this.options.cancel)
+        {
+            this.emit('cancel', this.list || this.object)
+            return true
+        }
+        if (this.options.orphan)
+        {
+            if (this.list)
+            {
+                if (!this.list[0].parent)
+                {
+                    return true
+                }
+            }
+            else if (!this.object.parent)
+            {
+                return true
+            }
+        }
+        if (this.options.restart)
+        {
+            this.restart()
+            this.options.pause = false
+        }
+        if (this.options.original)
+        {
+            this.time = 0
+            this.options.pause = false
+        }
+        if (this.options.pause)
+        {
+            return
+        }
+        if (this.options.wait)
+        {
+            this.options.wait -= elapsed
+            if (this.options.wait <= 0)
+            {
+                elapsed = -this.options.wait
+                this.options.wait = false
+            }
+            else
+            {
+                this.emit('wait', elapsed, this.list || this.object)
+                return
+            }
+        }
+        if (!this.first)
+        {
+            this.first = true
+            this.emit('first', this.list || this.object)
+        }
+        this.time += elapsed
+        let leftOver = 0
+        if (this.duration !== 0 && this.time > this.duration)
+        {
+            leftOver = this.time - this.duration
+            this.time = this.duration
+        }
+        const allDone = this.calculate(elapsed)
+        this.emit('each', elapsed, this.list || this.object, this)
+        if (this.type === 'Wait' || (this.duration !== 0 && this.time === this.duration))
+        {
+            return this.end(leftOver)
+        }
+        if (allDone)
+        {
+            return true
+        }
+    }
+
+    // correct certain DOM values
+    _correctDOM(key, value)
+    {
+        switch (key)
+        {
+            case 'opacity':
+                return (isNaN(value)) ? 1 : value
+        }
+        return value
+    }
+
+    calculate() {}
+}
+},{"eventemitter3":8,"penner":193}],205:[function(require,module,exports){
 var EMPTY_ARRAY_BUFFER = new ArrayBuffer(0);
 
 /**
@@ -20735,7 +20420,7 @@ Buffer.prototype.destroy = function(){
 
 module.exports = Buffer;
 
-},{}],202:[function(require,module,exports){
+},{}],206:[function(require,module,exports){
 
 var Texture = require('./GLTexture');
 
@@ -20962,7 +20647,7 @@ Framebuffer.createFloat32 = function(gl, width, height, data)
 
 module.exports = Framebuffer;
 
-},{"./GLTexture":204}],203:[function(require,module,exports){
+},{"./GLTexture":208}],207:[function(require,module,exports){
 
 var compileProgram = require('./shader/compileProgram'),
 	extractAttributes = require('./shader/extractAttributes'),
@@ -21058,7 +20743,7 @@ Shader.prototype.destroy = function()
 
 module.exports = Shader;
 
-},{"./shader/compileProgram":209,"./shader/extractAttributes":211,"./shader/extractUniforms":212,"./shader/generateUniformAccessObject":213,"./shader/setPrecision":217}],204:[function(require,module,exports){
+},{"./shader/compileProgram":213,"./shader/extractAttributes":215,"./shader/extractUniforms":216,"./shader/generateUniformAccessObject":217,"./shader/setPrecision":221}],208:[function(require,module,exports){
 
 /**
  * Helper class to create a WebGL Texture
@@ -21393,7 +21078,7 @@ Texture.fromData = function(gl, data, width, height)
 
 module.exports = Texture;
 
-},{}],205:[function(require,module,exports){
+},{}],209:[function(require,module,exports){
 
 // state object//
 var setVertexAttribArrays = require( './setVertexAttribArrays' );
@@ -21657,7 +21342,7 @@ VertexArrayObject.prototype.getSize = function()
     return attrib.buffer.data.length / (( attrib.stride/4 ) || attrib.attribute.size);
 };
 
-},{"./setVertexAttribArrays":208}],206:[function(require,module,exports){
+},{"./setVertexAttribArrays":212}],210:[function(require,module,exports){
 
 /**
  * Helper class to create a webGL Context
@@ -21685,7 +21370,7 @@ var createContext = function(canvas, options)
 
 module.exports = createContext;
 
-},{}],207:[function(require,module,exports){
+},{}],211:[function(require,module,exports){
 var gl = {
     createContext:          require('./createContext'),
     setVertexAttribArrays:  require('./setVertexAttribArrays'),
@@ -21712,7 +21397,7 @@ if (typeof window !== 'undefined')
     window.PIXI.glCore = gl;
 }
 
-},{"./GLBuffer":201,"./GLFramebuffer":202,"./GLShader":203,"./GLTexture":204,"./VertexArrayObject":205,"./createContext":206,"./setVertexAttribArrays":208,"./shader":214}],208:[function(require,module,exports){
+},{"./GLBuffer":205,"./GLFramebuffer":206,"./GLShader":207,"./GLTexture":208,"./VertexArrayObject":209,"./createContext":210,"./setVertexAttribArrays":212,"./shader":218}],212:[function(require,module,exports){
 // var GL_MAP = {};
 
 /**
@@ -21769,7 +21454,7 @@ var setVertexAttribArrays = function (gl, attribs, state)
 
 module.exports = setVertexAttribArrays;
 
-},{}],209:[function(require,module,exports){
+},{}],213:[function(require,module,exports){
 
 /**
  * @class
@@ -21851,7 +21536,7 @@ var compileShader = function (gl, type, src)
 
 module.exports = compileProgram;
 
-},{}],210:[function(require,module,exports){
+},{}],214:[function(require,module,exports){
 /**
  * @class
  * @memberof PIXI.glCore.shader
@@ -21931,7 +21616,7 @@ var booleanArray = function(size)
 
 module.exports = defaultValue;
 
-},{}],211:[function(require,module,exports){
+},{}],215:[function(require,module,exports){
 
 var mapType = require('./mapType');
 var mapSize = require('./mapSize');
@@ -21974,7 +21659,7 @@ var pointer = function(type, normalized, stride, start){
 
 module.exports = extractAttributes;
 
-},{"./mapSize":215,"./mapType":216}],212:[function(require,module,exports){
+},{"./mapSize":219,"./mapType":220}],216:[function(require,module,exports){
 var mapType = require('./mapType');
 var defaultValue = require('./defaultValue');
 
@@ -22011,7 +21696,7 @@ var extractUniforms = function(gl, program)
 
 module.exports = extractUniforms;
 
-},{"./defaultValue":210,"./mapType":216}],213:[function(require,module,exports){
+},{"./defaultValue":214,"./mapType":220}],217:[function(require,module,exports){
 /**
  * Extracts the attributes
  * @class
@@ -22154,7 +21839,7 @@ var GLSL_TO_ARRAY_SETTERS = {
 
 module.exports = generateUniformAccessObject;
 
-},{}],214:[function(require,module,exports){
+},{}],218:[function(require,module,exports){
 module.exports = {
     compileProgram: require('./compileProgram'),
     defaultValue: require('./defaultValue'),
@@ -22165,7 +21850,7 @@ module.exports = {
     mapSize: require('./mapSize'),
     mapType: require('./mapType')
 };
-},{"./compileProgram":209,"./defaultValue":210,"./extractAttributes":211,"./extractUniforms":212,"./generateUniformAccessObject":213,"./mapSize":215,"./mapType":216,"./setPrecision":217}],215:[function(require,module,exports){
+},{"./compileProgram":213,"./defaultValue":214,"./extractAttributes":215,"./extractUniforms":216,"./generateUniformAccessObject":217,"./mapSize":219,"./mapType":220,"./setPrecision":221}],219:[function(require,module,exports){
 /**
  * @class
  * @memberof PIXI.glCore.shader
@@ -22203,7 +21888,7 @@ var GLSL_TO_SIZE = {
 
 module.exports = mapSize;
 
-},{}],216:[function(require,module,exports){
+},{}],220:[function(require,module,exports){
 
 
 var mapType = function(gl, type) 
@@ -22251,7 +21936,7 @@ var GL_TO_GLSL_TYPES = {
 
 module.exports = mapType;
 
-},{}],217:[function(require,module,exports){
+},{}],221:[function(require,module,exports){
 /**
  * Sets the float precision on the shader. If the precision is already present this function will do nothing
  * @param {string} src       the shader source
@@ -22271,7 +21956,2336 @@ var setPrecision = function(src, precision)
 
 module.exports = setPrecision;
 
-},{}],218:[function(require,module,exports){
+},{}],222:[function(require,module,exports){
+module.exports = require('./src/viewport')
+},{"./src/viewport":234}],223:[function(require,module,exports){
+const Ease = require('pixi-ease')
+const exists = require('exists')
+
+const Plugin = require('./plugin')
+
+module.exports = class Bounce extends Plugin
+{
+    /**
+     * @param {Viewport} parent
+     * @param {object} [options]
+     * @param {string} [options.sides=all] all, horizontal, vertical, or combination of top, bottom, right, left (e.g., 'top-bottom-right')
+     * @param {number} [options.friction=0.5] friction to apply to decelerate if active
+     * @param {number} [options.time=150] time in ms to finish bounce
+     * @param {string|function} [ease=easeInOutSine] ease function or name (see http://easings.net/ for supported names)
+     * @param {string} [options.underflow=center] (top/bottom/center and left/right/center, or center) where to place world if too small for screen
+     *
+     * @emits bounce-start-x(Viewport) emitted when a bounce on the x-axis starts
+     * @emits bounce.end-x(Viewport) emitted when a bounce on the x-axis ends
+     * @emits bounce-start-y(Viewport) emitted when a bounce on the y-axis starts
+     * @emits bounce-end-y(Viewport) emitted when a bounce on the y-axis ends
+     */
+    constructor(parent, options)
+    {
+        super(parent)
+        options = options || {}
+        this.time = options.time || 150
+        this.ease = options.ease || 'easeInOutSine'
+        this.friction = options.friction || 0.5
+        options.sides = options.sides || 'all'
+        if (options.sides)
+        {
+            if (options.sides === 'all')
+            {
+                this.top = this.bottom = this.left = this.right = true
+            }
+            else if (options.sides === 'horizontal')
+            {
+                this.right = this.left = true
+            }
+            else if (options.sides === 'vertical')
+            {
+                this.top = this.bottom = true
+            }
+            else
+            {
+                this.top = options.sides.indexOf('top') !== -1
+                this.bottom = options.sides.indexOf('bottom') !== -1
+                this.left = options.sides.indexOf('left') !== -1
+                this.right = options.sides.indexOf('right') !== -1
+            }
+        }
+        this.parseUnderflow(options.underflow || 'center')
+        this.last = {}
+    }
+
+    parseUnderflow(clamp)
+    {
+        clamp = clamp.toLowerCase()
+        if (clamp === 'center')
+        {
+            this.underflowX = 0
+            this.underflowY = 0
+        }
+        else
+        {
+            this.underflowX = (clamp.indexOf('left') !== -1) ? -1 : (clamp.indexOf('right') !== -1) ? 1 : 0
+            this.underflowY = (clamp.indexOf('top') !== -1) ? -1 : (clamp.indexOf('bottom') !== -1) ? 1 : 0
+        }
+    }
+
+    down()
+    {
+        this.toX = this.toY = null
+    }
+
+    up()
+    {
+        this.bounce()
+    }
+
+    update(elapsed)
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        this.bounce()
+        if (this.toX)
+        {
+            if (this.toX.update(elapsed))
+            {
+                this.toX = null
+                this.parent.emit('bounce-end-x', this.parent)
+            }
+            this.parent.dirty = true
+        }
+        if (this.toY)
+        {
+            if (this.toY.update(elapsed))
+            {
+                this.toY = null
+                this.parent.emit('bounce-end-y', this.parent)
+            }
+            this.parent.dirty = true
+        }
+    }
+
+    bounce()
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        let oob
+        let decelerate = this.parent.plugins['decelerate']
+        if (decelerate && (decelerate.x || decelerate.y))
+        {
+            if ((decelerate.x && decelerate.percentChangeX === decelerate.friction) || (decelerate.y && decelerate.percentChangeY === decelerate.friction))
+            {
+                oob = this.parent.OOB()
+                if ((oob.left && this.left) || (oob.right && this.right))
+                {
+                    decelerate.percentChangeX = this.friction
+                }
+                if ((oob.top && this.top) || (oob.bottom && this.bottom))
+                {
+                    decelerate.percentChangeY = this.friction
+                }
+            }
+        }
+        const drag = this.parent.plugins['drag'] || {}
+        const pinch = this.parent.plugins['pinch'] || {}
+        decelerate = decelerate || {}
+        if (!drag.active && !pinch.active && ((!this.toX || !this.toY) && (!decelerate.x || !decelerate.y)))
+        {
+            oob = oob || this.parent.OOB()
+            const point = oob.cornerPoint
+            if (!this.toX && !decelerate.x)
+            {
+                let x
+                if (this.parent.screenWorldWidth < this.parent.screenWidth)
+                {
+                    switch (this.underflowX)
+                    {
+                        case -1:
+                            x = 0
+                            break
+                        case 1:
+                            x = (this.parent.screenWidth - this.parent.screenWorldWidth)
+                            break
+                        default:
+                            x = (this.parent.screenWidth - this.parent.screenWorldWidth) / 2
+                    }
+                }
+                else
+                {
+                    if (oob.left && this.left)
+                    {
+                        x = 0
+                    }
+                    else if (oob.right && this.right)
+                    {
+                        x = -point.x
+                    }
+                }
+                if (exists(x) && this.parent.container.x !== x)
+                {
+                    this.toX = new Ease.to(this.parent.container, { x }, this.time, { ease: this.ease })
+                    this.parent.emit('bounce-start-x', this.parent)
+                }
+            }
+            if (!this.toY && !decelerate.y)
+            {
+                let y
+                if (this.parent.screenWorldHeight < this.parent.screenHeight)
+                {
+                    switch (this.underflowY)
+                    {
+                        case -1:
+                            y = 0
+                            break
+                        case 1:
+                            y = (this.parent.screenHeight - this.parent.screenWorldHeight)
+                            break
+                        default:
+                            y = (this.parent.screenHeight - this.parent.screenWorldHeight) / 2
+                    }
+                }
+                else
+                {
+                    if (oob.top && this.top)
+                    {
+                        y = 0
+                    }
+                    else if (oob.bottom && this.bottom)
+                    {
+                        y = -point.y
+                    }
+                }
+                if (exists(y) && this.parent.container.y !== y)
+                {
+                    this.toY = new Ease.to(this.parent.container, { y }, this.time, { ease: this.ease })
+                    this.parent.emit('bounce-start-y', this.parent)
+                }
+            }
+        }
+    }
+
+    reset()
+    {
+        this.toX = this.toY = null
+    }
+}
+},{"./plugin":231,"exists":9,"pixi-ease":194}],224:[function(require,module,exports){
+const Plugin = require('./plugin')
+
+module.exports = class ClampZoom extends Plugin
+{
+    /**
+     * @param {object} [options]
+     * @param {number} [options.minWidth] minimum width
+     * @param {number} [options.minHeight] minimum height
+     * @param {number} [options.maxWidth] maximum width
+     * @param {number} [options.maxHeight] maximum height
+     */
+    constructor(parent, options)
+    {
+        super(parent)
+        this.minWidth = options.minWidth
+        this.minHeight = options.minHeight
+        this.maxWidth = options.maxWidth
+        this.maxHeight = options.maxHeight
+    }
+
+    resize()
+    {
+        this.clamp()
+    }
+
+    clamp()
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        let width = this.parent.worldScreenWidth
+        let height = this.parent.worldScreenHeight
+        if (this.minWidth && width < this.minWidth)
+        {
+            this.parent.fitWidth(this.minWidth)
+            width = this.parent.worldScreenWidth
+            height = this.parent.worldScreenHeight
+        }
+        if (this.maxWidth && width > this.maxWidth)
+        {
+            this.parent.fitWidth(this.maxWidth)
+            width = this.parent.worldScreenWidth
+            height = this.parent.worldScreenHeight
+        }
+        if (this.minHeight && height < this.minHeight)
+        {
+            this.parent.fitHeight(this.minHeight)
+            width = this.parent.worldScreenWidth
+            height = this.parent.worldScreenHeight
+        }
+        if (this.maxHeight && height > this.maxHeight)
+        {
+            this.parent.fitHeight(this.maxHeight)
+        }
+    }
+}
+
+},{"./plugin":231}],225:[function(require,module,exports){
+const Plugin = require('./plugin')
+
+module.exports = class clamp extends Plugin
+{
+    /**
+     * @param {object} options
+     * @param {string} [options.direction=all] (all, x, or y)
+     * @param {string} [options.underflow=center] (top/bottom/center and left/right/center, or center) where to place world if too small for screen
+     */
+    constructor(parent, options)
+    {
+        options = options || {}
+        super(parent)
+        switch (options.direction)
+        {
+            case 'x':
+                this.x = true
+                break
+            case 'y':
+                this.y = true
+                break
+            default:
+                this.x = this.y = true
+                break
+        }
+        this.parseUnderflow(options.underflow || 'center')
+        this.move()
+    }
+
+    parseUnderflow(clamp)
+    {
+        clamp = clamp.toLowerCase()
+        if (clamp === 'center')
+        {
+            this.underflowX = 0
+            this.underflowY = 0
+        }
+        else
+        {
+            this.underflowX = (clamp.indexOf('left') !== -1) ? -1 : (clamp.indexOf('right') !== -1) ? 1 : 0
+            this.underflowY = (clamp.indexOf('top') !== -1) ? -1 : (clamp.indexOf('bottom') !== -1) ? 1 : 0
+        }
+    }
+
+    move()
+    {
+        this.update()
+    }
+
+    update()
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        const oob = this.parent.OOB()
+        const point = oob.cornerPoint
+        const decelerate = this.parent.plugins['decelerate'] || {}
+        if (this.x)
+        {
+            if (this.parent.screenWorldWidth < this.parent.screenWidth)
+            {
+                switch (this.underflowX)
+                {
+                    case -1:
+                        this.parent.container.x = 0
+                        break
+                    case 1:
+                        this.parent.container.x = (this.parent.screenWidth - this.parent.screenWorldWidth)
+                        break
+                    default:
+                        this.parent.container.x = (this.parent.screenWidth - this.parent.screenWorldWidth) / 2
+                }
+            }
+            else
+            {
+                if (oob.left)
+                {
+                    this.parent.container.x = 0
+                    decelerate.x = 0
+                }
+                else if (oob.right)
+                {
+                    this.parent.container.x = -point.x
+                    decelerate.x = 0
+                }
+            }
+        }
+        if (this.y)
+        {
+            if (this.parent.screenWorldHeight < this.parent.screenHeight)
+            {
+                switch (this.underflowY)
+                {
+                    case -1:
+                        this.parent.container.y = 0
+                        break
+                    case 1:
+                        this.parent.container.y = (this.parent.screenHeight - this.parent.screenWorldHeight)
+                        break
+                    default:
+                        this.parent.container.y = (this.parent.screenHeight - this.parent.screenWorldHeight) / 2
+                }
+            }
+            else
+            {
+                if (oob.top)
+                {
+                    this.parent.container.y = 0
+                    decelerate.y = 0
+                }
+                else if (oob.bottom)
+                {
+                    this.parent.container.y = -point.y
+                    decelerate.y = 0
+                }
+            }
+        }
+    }
+}
+},{"./plugin":231}],226:[function(require,module,exports){
+const exists = require('exists')
+
+const Plugin = require('./plugin')
+
+module.exports = class Decelerate extends Plugin
+{
+    /**
+     * @param {Viewport} parent
+     * @param {object} [options]
+     * @param {number} [options.friction=0.95] percent to decelerate after movement
+     * @param {number} [options.bounce=0.8] percent to decelerate when past boundaries (only applicable when viewport.bounce() is active)
+     * @param {number} [options.minSpeed=0.01] minimum velocity before stopping/reversing acceleration
+     */
+    constructor(parent, options)
+    {
+        super(parent)
+        options = options || {}
+        this.friction = options.friction || 0.95
+        this.bounce = options.bounce || 0.5
+        this.minSpeed = typeof options.minSpeed !== 'undefined' ? options.minSpeed : 0.01
+        this.saved = []
+    }
+
+    down()
+    {
+        this.saved = []
+        this.x = this.y = false
+    }
+
+    move()
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        const pointers = this.parent.pointers
+        if (pointers.length === 1 || (pointers.length > 1 && !this.parent.plugins['pinch']))
+        {
+            this.saved.push({ x: this.parent.container.x, y: this.parent.container.y, time: performance.now() })
+            if (this.saved.length > 60)
+            {
+                this.saved.splice(0, 30)
+            }
+        }
+    }
+
+    up()
+    {
+        const pointers = this.parent.pointers
+        if (pointers.length === 0 && this.saved.length)
+        {
+            const now = performance.now()
+            for (let save of this.saved)
+            {
+                if (save.time >= now - 100)
+                {
+                    const time = now - save.time
+                    this.x = (this.parent.container.x - save.x) / time
+                    this.y = (this.parent.container.y - save.y) / time
+                    this.percentChangeX = this.percentChangeY = this.friction
+                    break
+                }
+            }
+        }
+    }
+
+    /**
+     * manually activate plugin
+     * @param {object} options
+     * @param {number} [options.x]
+     * @param {number} [options.y]
+     */
+    activate(options)
+    {
+        if (exists(options.x))
+        {
+            this.x = options.x
+            this.percentChangeX = this.friction
+        }
+        if (exists(options.y))
+        {
+            this.y = options.y
+            this.percentChangeY = this.friction
+        }
+    }
+
+    update(elapsed)
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        if (this.x)
+        {
+            this.parent.container.x += this.x * elapsed
+            this.x *= this.percentChangeX
+            if (Math.abs(this.x) < this.minSpeed)
+            {
+                this.x = 0
+            }
+            this.parent.dirty = true
+        }
+        if (this.y)
+        {
+            this.parent.container.y += this.y * elapsed
+            this.y *= this.percentChangeY
+            if (Math.abs(this.y) < this.minSpeed)
+            {
+                this.y = 0
+            }
+            this.parent.dirty = true
+        }
+    }
+
+    reset()
+    {
+        this.x = this.y = null
+    }
+}
+},{"./plugin":231,"exists":9}],227:[function(require,module,exports){
+const exists = require('exists')
+
+const Plugin = require('./plugin')
+module.exports = class Drag extends Plugin
+{
+    /**
+     * enable one-finger touch to drag
+     * @param {Viewport} parent
+     * @param {object} [options]
+     * @param {boolean} [options.wheel=true] use wheel to scroll in y direction (unless wheel plugin is active)
+     * @param {number} [options.wheelScroll=1] number of pixels to scroll with each wheel spin
+     * @param {boolean} [options.reverse] reverse the direction of the wheel scroll
+     * @param {boolean|string} [options.clampWheel] (true, x, or y) clamp wheel (to avoid weird bounce with mouse wheel)
+     * @param {string} [options.underflow=center] (top/bottom/center and left/right/center, or center) where to place world if too small for screen
+     */
+    constructor(parent, options)
+    {
+        options = options || {}
+        super(parent)
+        this.moved = false
+        this.wheelActive = exists(options.wheel) ? options.wheel : true
+        this.wheelScroll = options.wheelScroll || 1
+        this.reverse = options.reverse ? 1 : -1
+        this.clampWheel = options.clampWheel
+        this.parseUnderflow(options.underflow || 'center')
+    }
+
+    parseUnderflow(clamp)
+    {
+        clamp = clamp.toLowerCase()
+        if (clamp === 'center')
+        {
+            this.underflowX = 0
+            this.underflowY = 0
+        }
+        else
+        {
+            this.underflowX = (clamp.indexOf('left') !== -1) ? -1 : (clamp.indexOf('right') !== -1) ? 1 : 0
+            this.underflowY = (clamp.indexOf('top') !== -1) ? -1 : (clamp.indexOf('bottom') !== -1) ? 1 : 0
+        }
+    }
+
+    down(x, y)
+    {
+        if (this.paused)
+        {
+            return
+        }
+        const pointers = this.parent.pointers
+        if (pointers.length === 1)
+        {
+            this.last = { x, y }
+            return true
+        }
+    }
+
+    get active()
+    {
+        return this.last ? true : false
+    }
+
+    move(x, y)
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        if (this.last)
+        {
+            const pointers = this.parent.pointers
+            if (pointers.length === 1 || (pointers.length > 1 && !this.parent.plugins['pinch']))
+            {
+                const distX = x - this.last.x
+                const distY = y - this.last.y
+                if (this.moved || (this.parent.checkThreshold(distX) || this.parent.checkThreshold(distY)))
+                {
+                    this.parent.container.x += distX
+                    this.parent.container.y += distY
+                    this.last = { x, y }
+                    if (!this.moved)
+                    {
+                        this.parent.emit('drag-start', { screen: this.last, world: this.parent.toWorld(this.last), viewport: this.parent})
+                    }
+                    this.moved = true
+                    this.parent.dirty = true
+                }
+            }
+            else
+            {
+                this.moved = false
+            }
+        }
+    }
+
+    up()
+    {
+        if (this.last && this.moved)
+        {
+            this.parent.emit('drag-end', {screen: this.last, world: this.parent.toWorld(this.last), viewport: this.parent})
+            this.moved = false
+        }
+        this.last = null
+    }
+
+    wheel(dx, dy)
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        if (this.wheelActive)
+        {
+            const wheel = this.parent.plugins['wheel']
+            if (!wheel)
+            {
+                this.parent.container.x += dx * this.wheelScroll * this.reverse
+                this.parent.container.y += dy * this.wheelScroll * this.reverse
+                if (this.clampWheel)
+                {
+                    this.clamp()
+                }
+                this.parent.emit('wheel-scroll', this.parent)
+                this.parent.dirty = true
+                return true
+            }
+        }
+    }
+
+    resume()
+    {
+        this.last = null
+        this.paused = false
+    }
+
+    clamp()
+    {
+        const oob = this.parent.OOB()
+        const point = oob.cornerPoint
+        const decelerate = this.parent.plugins['decelerate'] || {}
+        if (this.clampWheel !== 'y')
+        {
+            if (this.parent.screenWorldWidth < this.parent.screenWidth)
+            {
+                switch (this.underflowX)
+                {
+                    case -1:
+                        this.parent.container.x = 0
+                        break
+                    case 1:
+                        this.parent.container.x = (this.parent.screenWidth - this.parent.screenWorldWidth)
+                        break
+                    default:
+                        this.parent.container.x = (this.parent.screenWidth - this.parent.screenWorldWidth) / 2
+                }
+            }
+            else
+            {
+                if (oob.left)
+                {
+                    this.parent.container.x = 0
+                    decelerate.x = 0
+                }
+                else if (oob.right)
+                {
+                    this.parent.container.x = -point.x
+                    decelerate.x = 0
+                }
+            }
+        }
+        if (this.clampWheel !== 'x')
+        {
+            if (this.parent.screenWorldHeight < this.parent.screenHeight)
+            {
+                switch (this.underflowY)
+                {
+                    case -1:
+                        this.parent.container.y = 0
+                        break
+                    case 1:
+                        this.parent.container.y = (this.parent.screenHeight - this.parent.screenWorldHeight)
+                        break
+                    default:
+                        this.parent.container.y = (this.parent.screenHeight - this.parent.screenWorldHeight) / 2
+                }
+            }
+            else
+            {
+                if (oob.top)
+                {
+                    this.parent.container.y = 0
+                    decelerate.y = 0
+                }
+                else if (oob.bottom)
+                {
+                    this.parent.container.y = -point.y
+                    decelerate.y = 0
+                }
+            }
+        }
+    }
+}
+},{"./plugin":231,"exists":9}],228:[function(require,module,exports){
+const Plugin = require('./plugin')
+
+module.exports = class Follow extends Plugin
+{
+    /**
+     * @param {Viewport} parent
+     * @param {PIXI.DisplayObject} target to follow (object must include {x: x-coordinate, y: y-coordinate})
+     * @param {object} [options]
+     * @param {number} [options.speed=0] to follow in pixels/frame (0=teleport to location)
+     * @param {number} [options.radius] radius (in world coordinates) of center circle where movement is allowed without moving the viewport
+     */
+    constructor(parent, target, options)
+    {
+        super(parent)
+        options = options || {}
+        this.speed = options.speed || 0
+        this.target = target
+        this.radius = options.radius
+    }
+
+    update()
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        const center = this.parent.center
+        let toX = this.target.x, toY = this.target.y
+        if (this.radius)
+        {
+            const distance = Math.sqrt(Math.pow(this.target.y - center.y, 2) + Math.pow(this.target.x - center.x, 2))
+            if (distance > this.radius)
+            {
+                const angle = Math.atan2(this.target.y - center.y, this.target.x - center.x)
+                toX = this.target.x - Math.cos(angle) * this.radius
+                toY = this.target.y - Math.sin(angle) * this.radius
+            }
+            else
+            {
+                return
+            }
+        }
+        if (this.speed)
+        {
+            const deltaX = toX - center.x
+            const deltaY = toY - center.y
+            if (deltaX || deltaY)
+            {
+                const angle = Math.atan2(toY - center.y, toX - center.x)
+                const changeX = Math.cos(angle) * this.speed
+                const changeY = Math.sin(angle) * this.speed
+                const x = Math.abs(changeX) > Math.abs(deltaX) ? toX : center.x + changeX
+                const y = Math.abs(changeY) > Math.abs(deltaY) ? toY : center.y + changeY
+                this.parent.moveCenter(x, y)
+            }
+        }
+        else
+        {
+            this.parent.moveCenter(toX, toY)
+        }
+    }
+}
+},{"./plugin":231}],229:[function(require,module,exports){
+const exists = require('exists')
+const Angle = require('yy-angle')
+
+const Plugin = require('./plugin')
+
+module.exports = class MouseEdges extends Plugin
+{
+    /**
+     * Scroll viewport when mouse hovers near one of the edges.
+     * @param {Viewport} parent
+     * @param {object} [options]
+     * @param {number} [options.radius] distance from center of screen in screen pixels
+     * @param {number} [options.distance] distance from all sides in screen pixels
+     * @param {number} [options.top] alternatively, set top distance (leave unset for no top scroll)
+     * @param {number} [options.bottom] alternatively, set bottom distance (leave unset for no top scroll)
+     * @param {number} [options.left] alternatively, set left distance (leave unset for no top scroll)
+     * @param {number} [options.right] alternatively, set right distance (leave unset for no top scroll)
+     * @param {number} [options.speed=8] speed in pixels/frame to scroll viewport
+     * @param {boolean} [options.reverse] reverse direction of scroll
+     * @param {boolean} [options.noDecelerate] don't use decelerate plugin even if it's installed
+     * @param {boolean} [options.linear] if using radius, use linear movement (+/- 1, +/- 1) instead of angled movement (Math.cos(angle from center), Math.sin(angle from center))
+     *
+     * @event mouse-edge-start(Viewport) emitted when mouse-edge starts
+     * @event mouse-edge-end(Viewport) emitted when mouse-edge ends
+     */
+    constructor(parent, options)
+    {
+        super(parent)
+        options = options || {}
+        this.options = options
+        this.reverse = options.reverse ? 1 : -1
+        this.noDecelerate = options.noDecelerate
+        this.linear = options.linear
+        this.radiusSquared = Math.pow(options.radius, 2)
+        this.resize()
+        this.speed = options.speed || 8
+    }
+
+    resize()
+    {
+        const options = this.options
+        const distance = options.distance
+        if (exists(distance))
+        {
+            this.left = distance
+            this.top = distance
+            this.right = window.innerWidth - distance
+            this.bottom = window.innerHeight - distance
+        }
+        else if (!this.radius)
+        {
+            this.left = exists(options.left) ? options.left : null
+            this.top = exists(options.top) ? options.top : null
+            this.right = exists(options.right) ? window.innerWidth - options.right : null
+            this.bottom = exists(options.bottom) ? window.innerHeight - options.bottom : null
+        }
+    }
+
+    down()
+    {
+        this.horizontal = this.vertical = null
+    }
+
+    move(x, y, data)
+    {
+        if (data.input.pointers.length === 0)
+        {
+            if (this.radiusSquared)
+            {
+                const center = this.parent.toScreen(this.parent.center)
+                const distance = Angle.distanceTwoPointsSquared(center.x, center.y, x, y)
+                if (distance >= this.radiusSquared)
+                {
+                    const angle = Math.atan2(center.y - y, center.x - x)
+                    if (this.linear)
+                    {
+                        this.horizontal = Math.round(Math.cos(angle)) * this.speed * this.reverse * (60 / 1000)
+                        this.vertical = Math.round(Math.sin(angle)) * this.speed * this.reverse * (60 / 1000)
+                    }
+                    else
+                    {
+                        this.horizontal = Math.cos(angle) * this.speed * this.reverse * (60 / 1000)
+                        this.vertical = Math.sin(angle) * this.speed * this.reverse * (60 / 1000)
+                    }
+                }
+                else
+                {
+                    if (this.horizontal)
+                    {
+                        this.decelerateHorizontal()
+                    }
+                    if (this.vertical)
+                    {
+                        this.decelerateVertical()
+                    }
+                    this.horizontal = this.vertical = 0
+                }
+            }
+            else
+            {
+                if (exists(this.left) && x < this.left)
+                {
+                    this.horizontal = 1 * this.reverse * this.speed * (60 / 1000)
+                }
+                else if (exists(this.right) && x > this.right)
+                {
+                    this.horizontal = -1 * this.reverse * this.speed * (60 / 1000)
+                }
+                else
+                {
+                    this.decelerateHorizontal()
+                    this.horizontal = 0
+                }
+                if (exists(this.top) && y < this.top)
+                {
+                    this.vertical = 1 * this.reverse * this.speed * (60 / 1000)
+                }
+                else if (exists(this.bottom) && y > this.bottom)
+                {
+                    this.vertical = -1 * this.reverse * this.speed * (60 / 1000)
+                }
+                else
+                {
+                    this.decelerateVertical()
+                    this.vertical = 0
+                }
+            }
+        }
+    }
+
+    decelerateHorizontal()
+    {
+        const decelerate = this.parent.plugins['decelerate']
+        if (this.horizontal && decelerate && !this.noDecelerate)
+        {
+            decelerate.activate({ x: (this.horizontal * this.speed * this.reverse) / (1000 / 60) })
+        }
+    }
+
+    decelerateVertical()
+    {
+        const decelerate = this.parent.plugins['decelerate']
+        if (this.vertical && decelerate && !this.noDecelerate)
+        {
+            decelerate.activate({ y: (this.vertical * this.speed * this.reverse) / (1000 / 60)})
+        }
+    }
+
+    up()
+    {
+        if (this.horizontal)
+        {
+            this.decelerateHorizontal()
+        }
+        if (this.vertical)
+        {
+            this.decelerateVertical()
+        }
+        this.horizontal = this.vertical = null
+    }
+
+    update()
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        if (this.horizontal || this.vertical)
+        {
+            const center = this.parent.center
+            if (this.horizontal)
+            {
+                center.x += this.horizontal * this.speed
+            }
+            if (this.vertical)
+            {
+                center.y += this.vertical * this.speed
+            }
+            this.parent.moveCenter(center)
+        }
+    }
+}
+},{"./plugin":231,"exists":9,"yy-angle":402}],230:[function(require,module,exports){
+const Plugin = require('./plugin')
+
+module.exports = class Pinch extends Plugin
+{
+    /**
+     * @param {Viewport} parent
+     * @param {object} [options]
+     * @param {boolean} [options.noDrag] disable two-finger dragging
+     * @param {number} [options.percent=1.0] percent to modify pinch speed
+     * @param {PIXI.Point} [options.center] place this point at center during zoom instead of center of two fingers
+     */
+    constructor(parent, options)
+    {
+        super(parent)
+        options = options || {}
+        this.percent = options.percent || 1.0
+        this.noDrag = options.noDrag
+        this.center = options.center
+    }
+
+    down()
+    {
+        const pointers = this.parent.pointers
+        if (pointers.length >= 2)
+        {
+            this.active = true
+        }
+    }
+
+    move(x, y, data)
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        const pointers = this.parent.pointers
+        if (this.active)
+        {
+            const first = pointers[0]
+            const second = pointers[1]
+            let last
+            if (first.last && second.last)
+            {
+                last = Math.sqrt(Math.pow(second.last.x - first.last.x, 2) + Math.pow(second.last.y - first.last.y, 2))
+            }
+            if (first.id === data.id)
+            {
+                first.last = { x, y }
+            }
+            else if (second.id === data.id)
+            {
+                second.last = { x, y }
+            }
+            if (last)
+            {
+                let oldPoint
+                const point = { x: first.last.x + (second.last.x - first.last.x) / 2, y: first.last.y + (second.last.y - first.last.y) / 2 }
+                if (!this.center)
+                {
+                    oldPoint = this.parent.container.toLocal(point)
+                }
+                const dist = Math.sqrt(Math.pow(second.last.x - first.last.x, 2) + Math.pow(second.last.y - first.last.y, 2))
+                const change = ((dist - last) / this.parent.screenWidth) * this.parent.container.scale.x * this.percent
+                this.parent.container.scale.x += change
+                this.parent.container.scale.y += change
+                const clamp = this.parent.plugins['clamp-zoom']
+                if (clamp)
+                {
+                    clamp.clamp()
+                }
+                if (this.center)
+                {
+                    this.parent.moveCenter(this.center)
+                }
+                else
+                {
+                    const newPoint = this.parent.container.toGlobal(oldPoint)
+                    this.parent.container.x += point.x - newPoint.x
+                    this.parent.container.y += point.y - newPoint.y
+                }
+
+                if (!this.noDrag && this.lastCenter)
+                {
+                    this.parent.container.x += point.x - this.lastCenter.x
+                    this.parent.container.y += point.y - this.lastCenter.y
+                }
+                this.lastCenter = point
+            }
+            else
+            {
+                if (!this.pinching)
+                {
+                    this.parent.emit('pinch-start', this.parent)
+                    this.pinching = true
+                }
+            }
+            this.parent.dirty = true
+        }
+    }
+
+    up()
+    {
+        if (this.pinching)
+        {
+            const pointers = this.parent.pointers
+            if (pointers.length < 2)
+            {
+                this.active = false
+                this.lastCenter = null
+                this.pinching = false
+                this.parent.emit('pinch-end', this.parent)
+            }
+        }
+    }
+}
+},{"./plugin":231}],231:[function(require,module,exports){
+module.exports = class Plugin
+{
+    constructor(parent)
+    {
+        this.parent = parent
+        this.paused = false
+    }
+
+    down() { }
+    move() { }
+    up() { }
+    wheel() { }
+    update() { }
+    resize() { }
+    reset() { }
+
+    pause()
+    {
+        this.paused = true
+    }
+
+    resume()
+    {
+        this.paused = false
+    }
+}
+},{}],232:[function(require,module,exports){
+const Plugin = require('./plugin')
+const Ease = require('pixi-ease')
+const exists = require('exists')
+
+module.exports = class SnapZoom extends Plugin
+{
+    /**
+     * @param {Viewport} parent
+     * @param {object} [options]
+     * @param {number} [options.width] the desired width to snap (to maintain aspect ratio, choose only width or height)
+     * @param {number} [options.height] the desired height to snap (to maintain aspect ratio, choose only width or height)
+     * @param {number} [options.time=1000]
+     * @param {string|function} [options.ease=easeInOutSine] ease function or name (see http://easings.net/ for supported names)
+     * @param {boolean} [options.removeOnComplete=true] removes this plugin after fitting is complete
+     * @param {PIXI.Point} [options.center] place this point at center during zoom instead of center of the viewport
+     * @param {boolean} [options.interrupt=true] pause snapping with any user input on the viewport
+     *
+     * @event snap-zoom-start(Viewport) emitted each time a fit animation starts
+     * @event snap-zoom-end(Viewport) emitted each time fit reaches its target
+     */
+    constructor(parent, options)
+    {
+        super(parent)
+        options = options || {}
+        this.width = options.width
+        this.height = options.height
+        if (this.width > 0)
+        {
+            this.x_scale = parent._screenWidth / this.width
+        }
+        if (this.height > 0)
+        {
+            this.y_scale = parent._screenHeight / this.height
+        }
+        this.xIndependent = exists(this.x_scale)
+        this.yIndependent = exists(this.y_scale)
+        this.x_scale = this.xIndependent ? this.x_scale : this.y_scale
+        this.y_scale = this.yIndependent ? this.y_scale : this.x_scale
+
+        this.time = exists(options.time) ? options.time : 1000
+        this.ease = options.ease || 'easeInOutSine'
+        this.center = options.center
+        this.stopOnResize = options.stopOnResize
+        this.removeOnComplete = exists(options.removeOnComplete) ? options.removeOnComplete : true
+        this.interrupt = exists(options.interrupt) ? options.interrupt : true
+
+        if (this.time == 0)
+        {
+            parent.container.scale.x = this.x_scale
+            parent.container.scale.y = this.y_scale
+            if (this.removeOnComplete)
+            {
+                this.parent.removePlugin('snap-zoom')
+            }
+        }
+    }
+
+    resize()
+    {
+        this.snapping = null
+
+        if (this.width > 0)
+        {
+            this.x_scale = this.parent._screenWidth / this.width
+        }
+        if (this.height > 0)
+        {
+            this.y_scale = this.parent._screenHeight / this.height
+        }
+        this.x_scale = this.xIndependent ? this.x_scale : this.y_scale
+        this.y_scale = this.yIndependent ? this.y_scale : this.x_scale
+    }
+
+    reset()
+    {
+        this.snapping = null
+    }
+
+    down()
+    {
+        this.snapping = null
+    }
+
+    update(elapsed)
+    {
+        if (this.paused)
+        {
+            return
+        }
+        if (this.interrupt && this.parent.input.pointers.length !== 0)
+        {
+            return
+        }
+
+        let oldCenter
+        if (!this.center)
+        {
+            oldCenter = this.parent.center
+        }
+        if (!this.snapping)
+        {
+            if (this.parent.container.scale.x !== this.x_scale || this.parent.container.scale.y !== this.y_scale)
+            {
+                this.snapping = new Ease.to(this.parent.container.scale, { x: this.x_scale, y: this.y_scale }, this.time, { ease: this.ease })
+                this.parent.emit('snap-zoom-start', this.parent)
+            }
+        }
+        else if (this.snapping)
+        {
+            if (this.snapping.update(elapsed))
+            {
+                if (this.removeOnComplete)
+                {
+                    this.parent.removePlugin('snap-zoom')
+                }
+                this.parent.emit('snap-zoom-end', this.parent)
+                this.snapping = null
+            }
+            const clamp = this.parent.plugins['clamp-zoom']
+            if (clamp)
+            {
+                clamp.clamp()
+            }
+            if (!this.center)
+            {
+                this.parent.moveCenter(oldCenter)
+            }
+            else
+            {
+                this.parent.moveCenter(this.center)
+            }
+        }
+    }
+
+    resume()
+    {
+        this.snapping = null
+        super.resume()
+    }
+}
+},{"./plugin":231,"exists":9,"pixi-ease":194}],233:[function(require,module,exports){
+const Plugin = require('./plugin')
+const Ease = require('pixi-ease')
+const exists = require('exists')
+
+module.exports = class Snap extends Plugin
+{
+    /**
+     * @param {Viewport} parent
+     * @param {number} x
+     * @param {number} y
+     * @param {object} [options]
+     * @param {boolean} [options.topLeft] snap to the top-left of viewport instead of center
+     * @param {number} [options.friction=0.8] friction/frame to apply if decelerate is active
+     * @param {number} [options.time=1000]
+     * @param {string|function} [options.ease=easeInOutSine] ease function or name (see http://easings.net/ for supported names)
+     * @param {boolean} [options.interrupt=true] pause snapping with any user input on the viewport
+     * @param {boolean} [options.removeOnComplete] removes this plugin after snapping is complete
+     *
+     * @event snap-start(Viewport) emitted each time a snap animation starts
+     * @event snap-restart(Viewport) emitted each time a snap resets because of a change in viewport size
+     * @event snap-end(Viewport) emitted each time snap reaches its target
+     */
+    constructor(parent, x, y, options)
+    {
+        super(parent)
+        options = options || {}
+        this.friction = options.friction || 0.8
+        this.time = options.time || 1000
+        this.ease = options.ease || 'easeInOutSine'
+        this.x = x
+        this.y = y
+        this.topLeft = options.topLeft
+        this.interrupt = exists(options.interrupt) ? options.interrupt : true
+        this.removeOnComplete = options.removeOnComplete
+    }
+
+    startEase()
+    {
+        const current = this.topLeft ? this.parent.corner : this.parent.center
+        this.deltaX = this.x - current.x
+        this.deltaY = this.y - current.y
+        this.startX = current.x
+        this.startY = current.y
+    }
+
+    down()
+    {
+        if (this.interrupt)
+        {
+            this.snapping = null
+        }
+    }
+
+    up()
+    {
+        if (this.parent.input.pointers.length === 0)
+        {
+            const decelerate = this.parent.plugins['decelerate']
+            if (decelerate && (decelerate.x || decelerate.y))
+            {
+                decelerate.percentChangeX = decelerate.percentChangeY = this.friction
+            }
+        }
+    }
+
+    update(elapsed)
+    {
+        if (this.paused)
+        {
+            return
+        }
+        if (this.interrupt && this.parent.input.pointers.length !== 0)
+        {
+            return
+        }
+        if (!this.snapping)
+        {
+            const current = this.topLeft ? this.parent.corner : this.parent.center
+            if (current.x !== this.x || current.y !== this.y)
+            {
+                this.percent = 0
+                this.snapping = new Ease.to(this, { percent: 1 }, this.time, { ease: this.ease })
+                this.startEase()
+                this.parent.emit('snap-start', this.parent)
+            }
+        }
+        else
+        {
+            const finished = this.snapping.update(elapsed)
+            const x = this.startX + this.deltaX * this.percent
+            const y = this.startY + this.deltaY * this.percent
+            if (this.topLeft)
+            {
+                this.parent.moveCorner(x, y)
+            }
+            else
+            {
+                this.parent.moveCenter(x, y)
+            }
+
+            if (finished)
+            {
+                if (this.removeOnComplete)
+                {
+                    this.parent.removePlugin('snap')
+                }
+                this.parent.emit('snap-end', this.parent )
+                this.snapping = null
+            }
+        }
+    }
+}
+},{"./plugin":231,"exists":9,"pixi-ease":194}],234:[function(require,module,exports){
+const Loop = require('yy-loop')
+const Input = require('yy-input')
+const exists = require('exists')
+
+const Drag = require('./drag')
+const Pinch = require('./pinch')
+const Clamp = require('./clamp')
+const ClampZoom = require('./clamp-zoom')
+const Decelerate = require('./decelerate')
+const Bounce = require('./bounce')
+const Snap = require('./snap')
+const SnapZoom = require('./snap-zoom')
+const Follow = require('./follow')
+const Wheel = require('./wheel')
+const MouseEdges = require('./mouse-edges')
+
+const PLUGIN_ORDER = ['drag', 'pinch', 'wheel', 'follow', 'mouse-edges', 'decelerate', 'bounce', 'snap-zoom', 'clamp-zoom', 'snap', 'clamp']
+
+module.exports = class Viewport extends Loop
+{
+    /**
+     * @param {PIXI.Container} container to apply viewport
+     * @param {number} [options]
+     * @param {HTMLElement} [options.div=document.body] use this div to create the mouse/touch listeners
+     * @param {number} [options.screenWidth] these values are needed for clamp, bounce, and pinch plugins
+     * @param {number} [options.screenHeight]
+     * @param {number} [options.worldWidth]
+     * @param {number} [options.worldHeight]
+     * @param {number} [options.threshold=5] threshold for click
+     * @param {number} [options.maxFrameTime=1000 / 60] maximum frame time for animations
+     * @param {boolean} [options.pauseOnBlur] pause when app loses focus
+     * @param {boolean} [options.noListeners] manually call touch/mouse callback down/move/up
+     * @param {number} [options.preventDefault] call preventDefault after listeners
+     *
+     * @emits click({screen: {x, y}, world: {x, y}, viewport}) emitted when viewport is clicked
+     * @emits drag-start({screen: {x, y}, world: {x, y}, viewport}) emitted when a drag starts
+     * @emits drag-end({screen: {x, y}, world: {x, y}, viewport}) emitted when a drag ends
+     * @emits pinch-start(viewport) emitted when a pinch starts
+     * @emits pinch-end(viewport) emitted when a pinch ends
+     * @emits snap-start(viewport) emitted each time a snap animation starts
+     * @emits snap-end(viewport) emitted each time snap reaches its target
+     * @emits snap-zoom-start(viewport) emitted each time a snap-zoom animation starts
+     * @emits snap-zoom-end(viewport) emitted each time snap-zoom reaches its target
+     * @emits bounce-start-x(viewport) emitted when a bounce on the x-axis starts
+     * @emits bounce.end-x(viewport) emitted when a bounce on the x-axis ends
+     * @emits bounce-start-y(viewport) emitted when a bounce on the y-axis starts
+     * @emits bounce-end-y(viewport) emitted when a bounce on the y-axis ends
+     * @emits wheel({wheel: {dx, dy, dz}, viewport})
+     * @emits wheel-scroll(viewport)
+     */
+    constructor(container, options)
+    {
+        options = options || {}
+        super({ pauseOnBlur: options.pauseOnBlur, maxFrameTime: options.maxFrameTime })
+        this.container = container
+        this.plugins = []
+        this._screenWidth = options.screenWidth
+        this._screenHeight = options.screenHeight
+        this._worldWidth = options.worldWidth
+        this._worldHeight = options.worldHeight
+        this.threshold = typeof options.threshold === 'undefined' ? 5 : options.threshold
+        this.maxFrameTime = options.maxFrameTime || 1000 / 60
+        this.pointers = []
+        if (!options.noListeners)
+        {
+            this.listeners(options.div || document.body, options.threshold, options.preventDefault)
+        }
+        this.interval(this.updateFrame.bind(this))
+    }
+
+    /**
+     * start requestAnimationFrame() loop to handle animations; alternatively, call update() manually on each frame
+     * @inherited from yy-loop
+     */
+    // start()
+
+    /**
+     * update loop -- may be called manually or use start/stop() for Viewport to handle updates
+     * @inherited from yy-loop
+     */
+    // update()
+
+    /**
+     * update frame for animations
+     * @private
+     */
+    updateFrame(elapsed)
+    {
+        for (let plugin of PLUGIN_ORDER)
+        {
+            if (this.plugins[plugin])
+            {
+                this.plugins[plugin].update(elapsed)
+            }
+        }
+    }
+
+    /**
+     * stop loop
+     * @inherited from yy-loop
+     */
+    // stop()
+
+    /**
+     * use this to set screen and world sizes--needed for pinch/wheel/clamp/bounce
+     * @param {number} screenWidth
+     * @param {number} screenHeight
+     * @param {number} [worldWidth]
+     * @param {number} [worldHeight]
+     */
+    resize(screenWidth, screenHeight, worldWidth, worldHeight)
+    {
+        this._screenWidth = screenWidth
+        this._screenHeight = screenHeight
+        if (worldWidth)
+        {
+            this._worldWidth = worldWidth
+            this._worldHeight = worldHeight
+        }
+        if (exists(worldWidth) || exists(worldHeight))
+        {
+            this.resizePlugins()
+        }
+    }
+
+    /**
+     * called after a worldWidth/Height change
+     * @private
+     */
+    resizePlugins()
+    {
+        for (let type of PLUGIN_ORDER)
+        {
+            if (this.plugins[type])
+            {
+                this.plugins[type].resize()
+            }
+        }
+    }
+
+    /**
+     * @type {number}
+     */
+    get screenWidth()
+    {
+        return this._screenWidth
+    }
+    set screenWidth(value)
+    {
+        this._screenWidth = value
+    }
+
+    /**
+     * @type {number}
+     */
+    get screenHeight()
+    {
+        return this._screenHeight
+    }
+    set screenHeight(value)
+    {
+        this._screenHeight = value
+    }
+
+    /**
+     * @type {number}
+     */
+    get worldWidth()
+    {
+        return this._worldWidth
+    }
+    set worldWidth(value)
+    {
+        this._worldWidth = value
+        this.resizePlugins()
+    }
+
+    /**
+     * @type {number}
+     */
+    get worldHeight()
+    {
+        return this._worldHeight
+    }
+    set worldHeight(value)
+    {
+        this._worldHeight = value
+        this.resizePlugins()
+    }
+
+    /**
+     * add or remove mouse/touch listeners
+     * @private
+     */
+    listeners(div, threshold, preventDefault)
+    {
+        this.input = new Input({ div, threshold, preventDefault })
+        this.input.on('down', this.down, this)
+        this.input.on('move', this.move, this)
+        this.input.on('up', this.up, this)
+        this.input.on('click', this.click, this)
+        this.input.on('wheel', this.handleWheel, this)
+    }
+
+    /**
+     * handle down events
+     * @private
+     */
+    down(x, y, data)
+    {
+        let result
+        this.pointers.push({ id: data.id })
+        for (let type of PLUGIN_ORDER)
+        {
+            if (this.plugins[type])
+            {
+                if (this.plugins[type].down(...arguments))
+                {
+                    result = true
+                }
+            }
+        }
+        return result
+    }
+
+    /**
+     * whether change exceeds threshold
+     * @private
+     * @param {number} change
+     */
+    checkThreshold(change)
+    {
+        if (Math.abs(change) >= this.threshold)
+        {
+            return true
+        }
+        return false
+    }
+
+    /**
+     * handle move events
+     * @private
+     */
+    move(x, y, data)
+    {
+        if (this.findPointerIndex(data.id) !== -1)
+        {
+            let result
+            for (let type of PLUGIN_ORDER)
+            {
+                if (this.plugins[type])
+                {
+                    if (this.plugins[type].move(...arguments))
+                    {
+                        result = true
+                    }
+                }
+            }
+            return result
+        }
+    }
+
+    /**
+     * find pointer id
+     * @private
+     * @param {*} id
+     */
+    findPointerIndex(id)
+    {
+        for (let i = 0; i < this.pointers.length; i++)
+        {
+            const pointer = this.pointers[i]
+            if (pointer.id === id)
+            {
+                return i
+            }
+        }
+        return -1
+    }
+
+    /**
+     * handle up events
+     * @private
+     */
+    up(x, y, data)
+    {
+
+        const index = this.findPointerIndex(data.id)
+        if (index !== -1)
+        {
+            this.pointers.splice(index, 1)
+            let result
+            for (let type of PLUGIN_ORDER)
+            {
+                if (this.plugins[type])
+                {
+                    if (this.plugins[type].up(...arguments))
+                    {
+                        result = true
+                    }
+                }
+            }
+            return result
+        }
+    }
+
+    /**
+     * handle wheel events
+     * @private
+     */
+    handleWheel(dx, dy, dz, data)
+    {
+        let result
+        for (let type of PLUGIN_ORDER)
+        {
+            if (this.plugins[type])
+            {
+                if (this.plugins[type].wheel(dx, dy, dz, data))
+                {
+                    result = true
+                }
+            }
+        }
+        return result
+    }
+
+    /**
+     * handle click events
+     * @private
+     * @param {number} x
+     * @param {number} y
+     */
+    click(x, y)
+    {
+        const point = { x, y }
+        this.emit('click', { screen: point, world: this.toWorld(point), viewport: this})
+    }
+
+    /**
+     * change coordinates from screen to world
+     * @param {number|PIXI.Point} x
+     * @param {number} [y]
+     * @returns {PIXI.Point}
+     */
+    toWorld()
+    {
+        if (arguments.length === 2)
+        {
+            const x = arguments[0]
+            const y = arguments[1]
+            return this.container.toLocal({ x, y })
+        }
+        else
+        {
+            return this.container.toLocal(arguments[0])
+        }
+    }
+
+    /**
+     * change coordinates from world to screen
+     * @param {number|PIXI.Point} x
+     * @param {number} [y]
+     * @returns {PIXI.Point}
+     */
+    toScreen()
+    {
+        if (arguments.length === 2)
+        {
+            const x = arguments[0]
+            const y = arguments[1]
+            return this.container.toGlobal({ x, y })
+        }
+        else
+        {
+            const point = arguments[0]
+            return this.container.toGlobal(point)
+        }
+    }
+
+    /**
+     * @type {number} screen width in world coordinates
+     */
+    get worldScreenWidth()
+    {
+        return this._screenWidth / this.container.scale.x
+    }
+
+    /**
+     * @type {number} screen height in world coordinates
+     */
+    get worldScreenHeight()
+    {
+        return this._screenHeight / this.container.scale.y
+    }
+
+    /**
+     * @type {number} world width in screen coordinates
+     */
+    get screenWorldWidth()
+    {
+        return this._worldWidth * this.container.scale.x
+    }
+
+    /**
+     * @type {number} world height in screen coordinates
+     */
+    get screenWorldHeight()
+    {
+        return this._worldHeight * this.container.scale.y
+    }
+
+    /**
+     * get center of screen in world coordinates
+     * @type {{x: number, y: number}}
+     */
+    get center()
+    {
+        return { x: this.worldScreenWidth / 2 - this.container.x / this.container.scale.x, y: this.worldScreenHeight / 2 - this.container.y / this.container.scale.y }
+    }
+
+    /**
+     * move center of viewport to point
+     * @param {number|PIXI.Point} x|point
+     * @param {number} [y]
+     * @return {Viewport} this
+     */
+    moveCenter(/*x, y | PIXI.Point*/)
+    {
+        let x, y
+        if (!isNaN(arguments[0]))
+        {
+            x = arguments[0]
+            y = arguments[1]
+        }
+        else
+        {
+            x = arguments[0].x
+            y = arguments[0].y
+        }
+        this.container.position.set((this.worldScreenWidth / 2 - x) * this.container.scale.x, (this.worldScreenHeight / 2 - y) * this.container.scale.y)
+        this.dirty = true
+        return this
+    }
+
+    /**
+     * top-left corner
+     * @type {{x: number, y: number}
+     */
+    get corner()
+    {
+        return { x: -this.container.x / this.container.scale.x, y: -this.container.y / this.container.scale.y }
+    }
+
+    /**
+     * move viewport's top-left corner; also clamps and resets decelerate and bounce (as needed)
+     * @param {number|PIXI.Point} x|point
+     * @param {number} y
+     * @return {Viewport} this
+     */
+    moveCorner(/*x, y | point*/)
+    {
+        if (arguments.length === 1)
+        {
+            this.container.position.set(-arguments[0].x * this.container.scale.x, -arguments[0].y * this.container.scale.y)
+        }
+        else
+        {
+            this.container.position.set(-arguments[0] * this.container.scale.x, -arguments[1] * this.container.scale.y)
+        }
+        this._reset()
+        this.dirty = true
+        return this
+    }
+
+    /**
+     * change zoom so the width fits in the viewport
+     * @param {number} [width=this._worldWidth] in world coordinates
+     * @param {boolean} [center] maintain the same center
+     * @return {Viewport} this
+     */
+    fitWidth(width, center)
+    {
+        let save
+        if (center)
+        {
+            save = this.center
+        }
+        width = width || this._worldWidth
+        this.container.scale.x = this._screenWidth / width
+        this.container.scale.y = this.container.scale.x
+        if (center)
+        {
+            this.moveCenter(save)
+        }
+        return this
+    }
+
+    /**
+     * change zoom so the height fits in the viewport
+     * @param {number} [height=this._worldHeight] in world coordinates
+     * @param {boolean} [center] maintain the same center of the screen after zoom
+     * @return {Viewport} this
+     */
+    fitHeight(height, center)
+    {
+        let save
+        if (center)
+        {
+            save = this.center
+        }
+        height = height || this._worldHeight
+        this.container.scale.y = this._screenHeight / height
+        this.container.scale.x = this.container.scale.y
+        if (center)
+        {
+            this.moveCenter(save)
+        }
+        return this
+    }
+
+    /**
+     * change zoom so it fits the entire world in the viewport
+     * @param {boolean} [center] maintain the same center of the screen after zoom
+     * @return {Viewport} this
+     */
+    fitWorld(center)
+    {
+        let save
+        if (center)
+        {
+            save = this.center
+        }
+        this.container.scale.x = this._screenWidth / this._worldWidth
+        this.container.scale.y = this._screenHeight / this._worldHeight
+        if (this.container.scale.x < this.container.scale.y)
+        {
+            this.container.scale.y = this.container.scale.x
+        }
+        else
+        {
+            this.container.scale.x = this.container.scale.y
+        }
+        if (center)
+        {
+            this.moveCenter(save)
+        }
+        return this
+    }
+
+    /**
+     * change zoom so it fits the entire world in the viewport
+     * @param {boolean} [center] maintain the same center of the screen after zoom
+     * @return {Viewport} this
+     */
+    fit(center)
+    {
+        let save
+        if (center)
+        {
+            save = this.center
+        }
+        this.container.scale.x = this._screenWidth / this._worldWidth
+        this.container.scale.y = this._screenHeight / this._worldHeight
+        if (this.container.scale.x < this.container.scale.y)
+        {
+            this.container.scale.y = this.container.scale.x
+        }
+        else
+        {
+            this.container.scale.x = this.container.scale.y
+        }
+        if (center)
+        {
+            this.moveCenter(save)
+        }
+        return this
+    }
+
+    /**
+     * @param {object} [options]
+     * @param {number} [options.width] the desired width to snap (to maintain aspect ratio, choose only width or height)
+     * @param {number} [options.height] the desired height to snap (to maintain aspect ratio, choose only width or height)
+     * @param {number} [options.time=1000]
+     * @param {string|function} [options.ease=easeInOutSine] ease function or name (see http://easings.net/ for supported names)
+     * @param {boolean} [options.removeOnComplete=true] removes this plugin after fitting is complete
+     * @param {PIXI.Point} [options.center] place this point at center during zoom instead of center of the viewport
+     * @param {boolean} [options.interrupt=true] pause snapping with any user input on the viewport
+     */
+    snapZoom(options)
+    {
+        this.plugins['snap-zoom'] = new SnapZoom(this, options)
+        return this
+    }
+
+    /**
+     * is container out of world bounds
+     * @return { left:boolean, right: boolean, top: boolean, bottom: boolean }
+     * @private
+     */
+    OOB()
+    {
+        const result = {}
+        result.left = this.left < 0
+        result.right = this.right > this._worldWidth
+        result.top = this.top < 0
+        result.bottom = this.bottom > this._worldHeight
+        result.cornerPoint = {
+            x: this._worldWidth * this.container.scale.x - this._screenWidth,
+            y: this._worldHeight * this.container.scale.y - this._screenHeight
+        }
+        return result
+    }
+
+    /**
+     * world coordinates of the right edge of the screen
+     * @type {number}
+     */
+    get right()
+    {
+        return -this.container.x / this.container.scale.x + this.worldScreenWidth
+    }
+
+    /**
+     * world coordinates of the left edge of the screen
+     * @type {number}
+     */
+    get left()
+    {
+        return -this.container.x / this.container.scale.x
+    }
+
+    /**
+     * world coordinates of the top edge of the screen
+     * @type {number}
+     */
+    get top()
+    {
+        return -this.container.y / this.container.scale.y
+    }
+
+    /**
+     * world coordinates of the bottom edge of the screen
+     * @type {number}
+     */
+    get bottom()
+    {
+        return -this.container.y / this.container.scale.y + this.worldScreenHeight
+    }
+
+    /**
+     * determines whether the viewport is dirty (i.e., needs to be renderered to the screen because of a change)
+     * @type {boolean}
+     */
+    get dirty()
+    {
+        return this._dirty
+    }
+    set dirty(value)
+    {
+        this._dirty = value
+    }
+
+    /**
+     * clamps and resets bounce and decelerate (as needed) after manually moving viewport
+     * @private
+     */
+    _reset()
+    {
+        if (this.plugins['bounce'])
+        {
+            this.plugins['bounce'].reset()
+            this.plugins['bounce'].bounce()
+        }
+        if (this.plugins['decelerate'])
+        {
+            this.plugins['decelerate'].reset()
+        }
+        if (this.plugins['snap'])
+        {
+            this.plugins['snap'].reset()
+        }
+        if (this.plugins['clamp'])
+        {
+            this.plugins['clamp'].update()
+        }
+        if (this.plugins['clamp-zoom'])
+        {
+            this.plugins['clamp-zoom'].clamp()
+        }
+    }
+
+    // PLUGINS
+
+    /**
+     * removes installed plugin
+     * @param {string} type of plugin (e.g., 'drag', 'pinch')
+     */
+    removePlugin(type)
+    {
+        if (this.plugins[type])
+        {
+            this.plugins[type] = null
+        }
+    }
+
+    /**
+     * pause plugin
+     * @param {string} type of plugin (e.g., 'drag', 'pinch')
+     */
+    pausePlugin(type)
+    {
+        if (this.plugins[type])
+        {
+            this.plugins[type].pause()
+        }
+    }
+
+    /**
+     * resume plugin
+     * @param {string} type of plugin (e.g., 'drag', 'pinch')
+     */
+    resumePlugin(type)
+    {
+        if (this.plugins[type])
+        {
+            this.plugins[type].resume()
+        }
+    }
+
+    /**
+     * enable one-finger touch to drag
+     * @param {object} [options]
+     * @param {boolean} [options.wheel=true] use wheel to scroll in y direction (unless wheel plugin is active)
+     * @param {number} [options.wheelScroll=10] number of pixels to scroll with each wheel spin
+     * @param {boolean} [options.reverse] reverse the direction of the wheel scroll
+     * @param {string} [options.underflow=center] (top/bottom/center and left/right/center, or center) where to place world if too small for screen
+     */
+    drag(options)
+    {
+        this.plugins['drag'] = new Drag(this, options)
+        return this
+    }
+
+    /**
+     * enable clamp to boundaries of world
+     * NOTE: screenWidth, screenHeight, worldWidth, and worldHeight needs to be set for this to work properly
+     * @param {object} options
+     * @param {string} [options.direction=all] (all, x, or y)
+     * @param {string} [options.underflow=center] (top/bottom/center and left/right/center, or center) where to place world if too small for screen
+     * @return {Viewport} this
+     */
+    clamp(options)
+    {
+        this.plugins['clamp'] = new Clamp(this, options)
+        return this
+    }
+
+    /**
+     * decelerate after a move
+     * @param {object} [options]
+     * @param {number} [options.friction=0.95] percent to decelerate after movement
+     * @param {number} [options.bounce=0.8] percent to decelerate when past boundaries (only applicable when viewport.bounce() is active)
+     * @param {number} [options.minSpeed=0.01] minimum velocity before stopping/reversing acceleration
+     * @return {Viewport} this
+     */
+    decelerate(options)
+    {
+        this.plugins['decelerate'] = new Decelerate(this, options)
+        return this
+    }
+
+    /**
+     * bounce on borders
+     * NOTE: screenWidth, screenHeight, worldWidth, and worldHeight needs to be set for this to work properly
+     * @param {object} [options]
+     * @param {string} [options.sides=all] all, horizontal, vertical, or combination of top, bottom, right, left (e.g., 'top-bottom-right')
+     * @param {number} [options.friction=0.5] friction to apply to decelerate if active
+     * @param {number} [options.time=150] time in ms to finish bounce
+     * @param {string|function} [ease=easeInOutSine] ease function or name (see http://easings.net/ for supported names)
+     * @param {string} [options.underflow=center] (top/bottom/center and left/right/center, or center) where to place world if too small for screen
+     * @return {Viewport} this
+     */
+    bounce(options)
+    {
+        this.plugins['bounce'] = new Bounce(this, options)
+        return this
+    }
+
+    /**
+     * enable pinch to zoom and two-finger touch to drag
+     * NOTE: screenWidth, screenHeight, worldWidth, and worldHeight needs to be set for this to work properly
+     * @param {number} [options.percent=1.0] percent to modify pinch speed
+     * @param {boolean} [options.noDrag] disable two-finger dragging
+     * @param {PIXI.Point} [options.center] place this point at center during zoom instead of center of two fingers
+     * @return {Viewport} this
+     */
+    pinch(options)
+    {
+        this.plugins['pinch'] = new Pinch(this, options)
+        return this
+    }
+
+    /**
+     * snap to a point
+     * @param {number} x
+     * @param {number} y
+     * @param {object} [options]
+     * @param {boolean} [options.center] snap to the center of the camera instead of the top-left corner of viewport
+     * @param {number} [options.friction=0.8] friction/frame to apply if decelerate is active
+     * @param {number} [options.time=1000]
+     * @param {string|function} [options.ease=easeInOutSine] ease function or name (see http://easings.net/ for supported names)
+     * @param {boolean} [options.interrupt=true] pause snapping with any user input on the viewport
+     * @param {boolean} [options.removeOnComplete=true] removes this plugin after snapping is complete
+     * @return {Viewport} this
+     */
+    snap(x, y, options)
+    {
+        this.plugins['snap'] = new Snap(this, x, y, options)
+        return this
+    }
+
+    /**
+     * follow a target
+     * @param {PIXI.DisplayObject} target to follow (object must include {x: x-coordinate, y: y-coordinate})
+     * @param {object} [options]
+     * @param {number} [options.speed=0] to follow in pixels/frame (0=teleport to location)
+     * @param {number} [options.radius] radius (in world coordinates) of center circle where movement is allowed without moving the viewport
+     * @return {Viewport} this
+     */
+    follow(target, options)
+    {
+        this.plugins['follow'] = new Follow(this, target, options)
+        return this
+    }
+
+    /**
+     * zoom using mouse wheel
+     * @param {object} [options]
+     * @param {number} [options.percent=0.1] percent to scroll with each spin
+     * @param {boolean} [options.reverse] reverse the direction of the scroll
+     * @param {PIXI.Point} [options.center] place this point at center during zoom instead of current mouse position
+     * @return {Viewport} this
+     */
+    wheel(options)
+    {
+        this.plugins['wheel'] = new Wheel(this, options)
+        return this
+    }
+
+    /**
+     * enable clamping of zoom to constraints
+     * NOTE: screenWidth, screenHeight, worldWidth, and worldHeight needs to be set for this to work properly
+     * @param {object} [options]
+     * @param {number} [options.minWidth] minimum width
+     * @param {number} [options.minHeight] minimum height
+     * @param {number} [options.maxWidth] maximum width
+     * @param {number} [options.maxHeight] maximum height
+     * @return {Viewport} this
+     */
+    clampZoom(options)
+    {
+        this.plugins['clamp-zoom'] = new ClampZoom(this, options)
+        return this
+    }
+
+    /**
+     * Scroll viewport when mouse hovers near one of the edges or radius-distance from center of screen.
+     * @param {object} [options]
+     * @param {number} [options.radius] distance from center of screen in screen pixels
+     * @param {number} [options.distance] distance from all sides in screen pixels
+     * @param {number} [options.top] alternatively, set top distance (leave unset for no top scroll)
+     * @param {number} [options.bottom] alternatively, set bottom distance (leave unset for no top scroll)
+     * @param {number} [options.left] alternatively, set left distance (leave unset for no top scroll)
+     * @param {number} [options.right] alternatively, set right distance (leave unset for no top scroll)
+     * @param {number} [options.speed=8] speed in pixels/frame to scroll viewport
+     * @param {boolean} [options.reverse] reverse direction of scroll
+     * @param {boolean} [options.noDecelerate] don't use decelerate plugin even if it's installed
+     * @param {boolean} [options.linear] if using radius, use linear movement (+/- 1, +/- 1) instead of angled movement (Math.cos(angle from center), Math.sin(angle from center))
+     *
+     * @event mouse-edge-start(Viewport) emitted when mouse-edge starts
+     * @event mouse-edge-end(Viewport) emitted when mouse-edge ends
+     */
+    mouseEdges(options)
+    {
+        this.plugins['mouse-edges'] = new MouseEdges(this, options)
+        return this
+    }
+}
+
+},{"./bounce":223,"./clamp":225,"./clamp-zoom":224,"./decelerate":226,"./drag":227,"./follow":228,"./mouse-edges":229,"./pinch":230,"./snap":233,"./snap-zoom":232,"./wheel":235,"exists":9,"yy-input":406,"yy-loop":407}],235:[function(require,module,exports){
+const Plugin = require('./plugin')
+
+module.exports = class Wheel extends Plugin
+{
+    /**
+     * @param {Viewport} parent
+     * @param {object} [options]
+     * @param {number} [options.percent=0.1] percent to scroll with each spin
+     * @param {boolean} [options.reverse] reverse the direction of the scroll
+     * @param {PIXI.Point} [options.center] place this point at center during zoom instead of current mouse position
+     *
+     * @event wheel({wheel: {dx, dy, dz}, viewport})
+     */
+    constructor(parent, options)
+    {
+        super(parent)
+        options = options || {}
+        this.percent = options.percent || 0.1
+        this.center = options.center
+        this.reverse = options.reverse
+    }
+
+    wheel(dx, dy, dz, data)
+    {
+        if (this.paused)
+        {
+            return
+        }
+
+        let change
+        if (this.reverse)
+        {
+            change = dy > 0 ? 1 + this.percent : 1 - this.percent
+        }
+        else
+        {
+            change = dy > 0 ? 1 - this.percent : 1 + this.percent
+        }
+        let point = { x: data.x, y: data.y }
+        let oldPoint
+        if (!this.center)
+        {
+            oldPoint = this.parent.container.toLocal(point)
+        }
+        this.parent.container.scale.x *= change
+        this.parent.container.scale.y *= change
+        const clamp = this.parent.plugins['clamp-zoom']
+        if (clamp)
+        {
+            clamp.clamp()
+        }
+
+        if (this.center)
+        {
+            this.parent.moveCenter(this.center)
+        }
+        else
+        {
+            const newPoint = this.parent.container.toGlobal(oldPoint)
+            this.parent.container.x += point.x - newPoint.x
+            this.parent.container.y += point.y - newPoint.y
+        }
+        data.event.preventDefault()
+        this.parent.emit('wheel', { wheel: {dx, dy, dz}, viewport: this.parent})
+    }
+}
+},{"./plugin":231}],236:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -22765,7 +24779,7 @@ exports.default = AccessibilityManager;
 core.WebGLRenderer.registerPlugin('accessibility', AccessibilityManager);
 core.CanvasRenderer.registerPlugin('accessibility', AccessibilityManager);
 
-},{"../core":243,"./accessibleTarget":219,"ismobilejs":197}],219:[function(require,module,exports){
+},{"../core":261,"./accessibleTarget":237,"ismobilejs":189}],237:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -22823,7 +24837,7 @@ exports.default = {
   _accessibleDiv: false
 };
 
-},{}],220:[function(require,module,exports){
+},{}],238:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -22848,7 +24862,7 @@ Object.defineProperty(exports, 'AccessibilityManager', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./AccessibilityManager":218,"./accessibleTarget":219}],221:[function(require,module,exports){
+},{"./AccessibilityManager":236,"./accessibleTarget":237}],239:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -23071,7 +25085,7 @@ var Application = function () {
 
 exports.default = Application;
 
-},{"./autoDetectRenderer":223,"./const":224,"./display/Container":226,"./settings":279,"./ticker":299}],222:[function(require,module,exports){
+},{"./autoDetectRenderer":241,"./const":242,"./display/Container":244,"./settings":297,"./ticker":317}],240:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -23135,7 +25149,7 @@ var Shader = function (_GLShader) {
 
 exports.default = Shader;
 
-},{"./settings":279,"pixi-gl-core":207}],223:[function(require,module,exports){
+},{"./settings":297,"pixi-gl-core":211}],241:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -23204,7 +25218,7 @@ function autoDetectRenderer(options, arg1, arg2, arg3) {
     return new _CanvasRenderer2.default(options, arg1, arg2);
 }
 
-},{"./renderers/canvas/CanvasRenderer":255,"./renderers/webgl/WebGLRenderer":262,"./utils":303}],224:[function(require,module,exports){
+},{"./renderers/canvas/CanvasRenderer":273,"./renderers/webgl/WebGLRenderer":280,"./utils":321}],242:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -23547,7 +25561,7 @@ var UPDATE_PRIORITY = exports.UPDATE_PRIORITY = {
   UTILITY: -50
 };
 
-},{}],225:[function(require,module,exports){
+},{}],243:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -23890,7 +25904,7 @@ var Bounds = function () {
 
 exports.default = Bounds;
 
-},{"../math":248}],226:[function(require,module,exports){
+},{"../math":266}],244:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -24508,7 +26522,7 @@ var Container = function (_DisplayObject) {
 exports.default = Container;
 Container.prototype.containerUpdateTransform = Container.prototype.updateTransform;
 
-},{"../utils":303,"./DisplayObject":227}],227:[function(require,module,exports){
+},{"../utils":321,"./DisplayObject":245}],245:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -25200,7 +27214,7 @@ var DisplayObject = function (_EventEmitter) {
 exports.default = DisplayObject;
 DisplayObject.prototype.displayObjectUpdateTransform = DisplayObject.prototype.updateTransform;
 
-},{"../const":224,"../math":248,"../settings":279,"./Bounds":225,"./Transform":228,"./TransformStatic":230,"eventemitter3":16}],228:[function(require,module,exports){
+},{"../const":242,"../math":266,"../settings":297,"./Bounds":243,"./Transform":246,"./TransformStatic":248,"eventemitter3":8}],246:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -25381,7 +27395,7 @@ var Transform = function (_TransformBase) {
 
 exports.default = Transform;
 
-},{"../math":248,"./TransformBase":229}],229:[function(require,module,exports){
+},{"../math":266,"./TransformBase":247}],247:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -25468,7 +27482,7 @@ TransformBase.prototype.updateWorldTransform = TransformBase.prototype.updateTra
 
 TransformBase.IDENTITY = new TransformBase();
 
-},{"../math":248}],230:[function(require,module,exports){
+},{"../math":266}],248:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -25678,7 +27692,7 @@ var TransformStatic = function (_TransformBase) {
 
 exports.default = TransformStatic;
 
-},{"../math":248,"./TransformBase":229}],231:[function(require,module,exports){
+},{"../math":266,"./TransformBase":247}],249:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -26850,7 +28864,7 @@ exports.default = Graphics;
 
 Graphics._SPRITE_TEXTURE = null;
 
-},{"../const":224,"../display/Bounds":225,"../display/Container":226,"../math":248,"../renderers/canvas/CanvasRenderer":255,"../sprites/Sprite":280,"../textures/RenderTexture":291,"../textures/Texture":293,"../utils":303,"./GraphicsData":232,"./utils/bezierCurveTo":234}],232:[function(require,module,exports){
+},{"../const":242,"../display/Bounds":243,"../display/Container":244,"../math":266,"../renderers/canvas/CanvasRenderer":273,"../sprites/Sprite":298,"../textures/RenderTexture":309,"../textures/Texture":311,"../utils":321,"./GraphicsData":250,"./utils/bezierCurveTo":252}],250:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -26972,7 +28986,7 @@ var GraphicsData = function () {
 
 exports.default = GraphicsData;
 
-},{}],233:[function(require,module,exports){
+},{}],251:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -27241,7 +29255,7 @@ exports.default = CanvasGraphicsRenderer;
 
 _CanvasRenderer2.default.registerPlugin('graphics', CanvasGraphicsRenderer);
 
-},{"../../const":224,"../../renderers/canvas/CanvasRenderer":255}],234:[function(require,module,exports){
+},{"../../const":242,"../../renderers/canvas/CanvasRenderer":273}],252:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -27291,7 +29305,7 @@ function bezierCurveTo(fromX, fromY, cpX, cpY, cpX2, cpY2, toX, toY) {
     return path;
 }
 
-},{}],235:[function(require,module,exports){
+},{}],253:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -27556,7 +29570,7 @@ exports.default = GraphicsRenderer;
 
 _WebGLRenderer2.default.registerPlugin('graphics', GraphicsRenderer);
 
-},{"../../const":224,"../../renderers/webgl/WebGLRenderer":262,"../../renderers/webgl/utils/ObjectRenderer":272,"../../utils":303,"./WebGLGraphicsData":236,"./shaders/PrimitiveShader":237,"./utils/buildCircle":238,"./utils/buildPoly":240,"./utils/buildRectangle":241,"./utils/buildRoundedRectangle":242}],236:[function(require,module,exports){
+},{"../../const":242,"../../renderers/webgl/WebGLRenderer":280,"../../renderers/webgl/utils/ObjectRenderer":290,"../../utils":321,"./WebGLGraphicsData":254,"./shaders/PrimitiveShader":255,"./utils/buildCircle":256,"./utils/buildPoly":258,"./utils/buildRectangle":259,"./utils/buildRoundedRectangle":260}],254:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -27699,7 +29713,7 @@ var WebGLGraphicsData = function () {
 
 exports.default = WebGLGraphicsData;
 
-},{"pixi-gl-core":207}],237:[function(require,module,exports){
+},{"pixi-gl-core":211}],255:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -27744,7 +29758,7 @@ var PrimitiveShader = function (_Shader) {
 
 exports.default = PrimitiveShader;
 
-},{"../../../Shader":222}],238:[function(require,module,exports){
+},{"../../../Shader":240}],256:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -27837,7 +29851,7 @@ function buildCircle(graphicsData, webGLData, webGLDataNativeLines) {
     }
 }
 
-},{"../../../const":224,"../../../utils":303,"./buildLine":239}],239:[function(require,module,exports){
+},{"../../../const":242,"../../../utils":321,"./buildLine":257}],257:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -28107,7 +30121,7 @@ function buildNativeLine(graphicsData, webGLData) {
     }
 }
 
-},{"../../../math":248,"../../../utils":303}],240:[function(require,module,exports){
+},{"../../../math":266,"../../../utils":321}],258:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -28193,7 +30207,7 @@ function buildPoly(graphicsData, webGLData, webGLDataNativeLines) {
     }
 }
 
-},{"../../../utils":303,"./buildLine":239,"earcut":15}],241:[function(require,module,exports){
+},{"../../../utils":321,"./buildLine":257,"earcut":7}],259:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -28269,7 +30283,7 @@ function buildRectangle(graphicsData, webGLData, webGLDataNativeLines) {
     }
 }
 
-},{"../../../utils":303,"./buildLine":239}],242:[function(require,module,exports){
+},{"../../../utils":321,"./buildLine":257}],260:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -28425,7 +30439,7 @@ function quadraticBezierCurve(fromX, fromY, cpX, cpY, toX, toY) {
     return points;
 }
 
-},{"../../../utils":303,"./buildLine":239,"earcut":15}],243:[function(require,module,exports){
+},{"../../../utils":321,"./buildLine":257,"earcut":7}],261:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -28811,7 +30825,7 @@ exports.WebGLRenderer = _WebGLRenderer2.default; /**
                                                   * @namespace PIXI
                                                   */
 
-},{"./Application":221,"./Shader":222,"./autoDetectRenderer":223,"./const":224,"./display/Bounds":225,"./display/Container":226,"./display/DisplayObject":227,"./display/Transform":228,"./display/TransformBase":229,"./display/TransformStatic":230,"./graphics/Graphics":231,"./graphics/GraphicsData":232,"./graphics/canvas/CanvasGraphicsRenderer":233,"./graphics/webgl/GraphicsRenderer":235,"./math":248,"./renderers/canvas/CanvasRenderer":255,"./renderers/canvas/utils/CanvasRenderTarget":257,"./renderers/webgl/WebGLRenderer":262,"./renderers/webgl/filters/Filter":264,"./renderers/webgl/filters/spriteMask/SpriteMaskFilter":267,"./renderers/webgl/managers/WebGLManager":271,"./renderers/webgl/utils/ObjectRenderer":272,"./renderers/webgl/utils/Quad":273,"./renderers/webgl/utils/RenderTarget":274,"./settings":279,"./sprites/Sprite":280,"./sprites/canvas/CanvasSpriteRenderer":281,"./sprites/canvas/CanvasTinter":282,"./sprites/webgl/SpriteRenderer":284,"./text/Text":286,"./text/TextMetrics":287,"./text/TextStyle":288,"./textures/BaseRenderTexture":289,"./textures/BaseTexture":290,"./textures/RenderTexture":291,"./textures/Spritesheet":292,"./textures/Texture":293,"./textures/TextureMatrix":294,"./textures/TextureUvs":295,"./textures/VideoBaseTexture":296,"./ticker":299,"./utils":303,"pixi-gl-core":207}],244:[function(require,module,exports){
+},{"./Application":239,"./Shader":240,"./autoDetectRenderer":241,"./const":242,"./display/Bounds":243,"./display/Container":244,"./display/DisplayObject":245,"./display/Transform":246,"./display/TransformBase":247,"./display/TransformStatic":248,"./graphics/Graphics":249,"./graphics/GraphicsData":250,"./graphics/canvas/CanvasGraphicsRenderer":251,"./graphics/webgl/GraphicsRenderer":253,"./math":266,"./renderers/canvas/CanvasRenderer":273,"./renderers/canvas/utils/CanvasRenderTarget":275,"./renderers/webgl/WebGLRenderer":280,"./renderers/webgl/filters/Filter":282,"./renderers/webgl/filters/spriteMask/SpriteMaskFilter":285,"./renderers/webgl/managers/WebGLManager":289,"./renderers/webgl/utils/ObjectRenderer":290,"./renderers/webgl/utils/Quad":291,"./renderers/webgl/utils/RenderTarget":292,"./settings":297,"./sprites/Sprite":298,"./sprites/canvas/CanvasSpriteRenderer":299,"./sprites/canvas/CanvasTinter":300,"./sprites/webgl/SpriteRenderer":302,"./text/Text":304,"./text/TextMetrics":305,"./text/TextStyle":306,"./textures/BaseRenderTexture":307,"./textures/BaseTexture":308,"./textures/RenderTexture":309,"./textures/Spritesheet":310,"./textures/Texture":311,"./textures/TextureMatrix":312,"./textures/TextureUvs":313,"./textures/VideoBaseTexture":314,"./ticker":317,"./utils":321,"pixi-gl-core":211}],262:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -29004,7 +31018,7 @@ var GroupD8 = {
 
 exports.default = GroupD8;
 
-},{"./Matrix":245}],245:[function(require,module,exports){
+},{"./Matrix":263}],263:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -29535,7 +31549,7 @@ var Matrix = function () {
 
 exports.default = Matrix;
 
-},{"./Point":247}],246:[function(require,module,exports){
+},{"./Point":265}],264:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -29652,7 +31666,7 @@ var ObservablePoint = function () {
 
 exports.default = ObservablePoint;
 
-},{}],247:[function(require,module,exports){
+},{}],265:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -29743,7 +31757,7 @@ var Point = function () {
 
 exports.default = Point;
 
-},{}],248:[function(require,module,exports){
+},{}],266:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -29831,7 +31845,7 @@ Object.defineProperty(exports, 'RoundedRectangle', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./GroupD8":244,"./Matrix":245,"./ObservablePoint":246,"./Point":247,"./shapes/Circle":249,"./shapes/Ellipse":250,"./shapes/Polygon":251,"./shapes/Rectangle":252,"./shapes/RoundedRectangle":253}],249:[function(require,module,exports){
+},{"./GroupD8":262,"./Matrix":263,"./ObservablePoint":264,"./Point":265,"./shapes/Circle":267,"./shapes/Ellipse":268,"./shapes/Polygon":269,"./shapes/Rectangle":270,"./shapes/RoundedRectangle":271}],267:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -29945,7 +31959,7 @@ var Circle = function () {
 
 exports.default = Circle;
 
-},{"../../const":224,"./Rectangle":252}],250:[function(require,module,exports){
+},{"../../const":242,"./Rectangle":270}],268:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -30067,7 +32081,7 @@ var Ellipse = function () {
 
 exports.default = Ellipse;
 
-},{"../../const":224,"./Rectangle":252}],251:[function(require,module,exports){
+},{"../../const":242,"./Rectangle":270}],269:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -30198,7 +32212,7 @@ var Polygon = function () {
 
 exports.default = Polygon;
 
-},{"../../const":224,"../Point":247}],252:[function(require,module,exports){
+},{"../../const":242,"../Point":265}],270:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -30461,7 +32475,7 @@ var Rectangle = function () {
 
 exports.default = Rectangle;
 
-},{"../../const":224}],253:[function(require,module,exports){
+},{"../../const":242}],271:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -30594,7 +32608,7 @@ var RoundedRectangle = function () {
 
 exports.default = RoundedRectangle;
 
-},{"../../const":224}],254:[function(require,module,exports){
+},{"../../const":242}],272:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -30957,7 +32971,7 @@ var SystemRenderer = function (_EventEmitter) {
 
 exports.default = SystemRenderer;
 
-},{"../const":224,"../display/Container":226,"../math":248,"../settings":279,"../textures/RenderTexture":291,"../utils":303,"eventemitter3":16}],255:[function(require,module,exports){
+},{"../const":242,"../display/Container":244,"../math":266,"../settings":297,"../textures/RenderTexture":309,"../utils":321,"eventemitter3":8}],273:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -31322,7 +33336,7 @@ var CanvasRenderer = function (_SystemRenderer) {
 exports.default = CanvasRenderer;
 _utils.pluginTarget.mixin(CanvasRenderer);
 
-},{"../../const":224,"../../settings":279,"../../utils":303,"../SystemRenderer":254,"./utils/CanvasMaskManager":256,"./utils/CanvasRenderTarget":257,"./utils/mapCanvasBlendModesToPixi":259}],256:[function(require,module,exports){
+},{"../../const":242,"../../settings":297,"../../utils":321,"../SystemRenderer":272,"./utils/CanvasMaskManager":274,"./utils/CanvasRenderTarget":275,"./utils/mapCanvasBlendModesToPixi":277}],274:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -31491,7 +33505,7 @@ var CanvasMaskManager = function () {
 
 exports.default = CanvasMaskManager;
 
-},{"../../../const":224}],257:[function(require,module,exports){
+},{"../../../const":242}],275:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -31615,7 +33629,7 @@ var CanvasRenderTarget = function () {
 
 exports.default = CanvasRenderTarget;
 
-},{"../../../settings":279}],258:[function(require,module,exports){
+},{"../../../settings":297}],276:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -31676,7 +33690,7 @@ function canUseNewCanvasBlendModes() {
     return data[0] === 255 && data[1] === 0 && data[2] === 0;
 }
 
-},{}],259:[function(require,module,exports){
+},{}],277:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -31748,7 +33762,7 @@ function mapCanvasBlendModesToPixi() {
     return array;
 }
 
-},{"../../../const":224,"./canUseNewCanvasBlendModes":258}],260:[function(require,module,exports){
+},{"../../../const":242,"./canUseNewCanvasBlendModes":276}],278:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -31868,7 +33882,7 @@ var TextureGarbageCollector = function () {
 
 exports.default = TextureGarbageCollector;
 
-},{"../../const":224,"../../settings":279}],261:[function(require,module,exports){
+},{"../../const":242,"../../settings":297}],279:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -32124,7 +34138,7 @@ var TextureManager = function () {
 
 exports.default = TextureManager;
 
-},{"../../const":224,"../../utils":303,"./utils/RenderTarget":274,"pixi-gl-core":207}],262:[function(require,module,exports){
+},{"../../const":242,"../../utils":321,"./utils/RenderTarget":292,"pixi-gl-core":211}],280:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -32941,7 +34955,7 @@ var WebGLRenderer = function (_SystemRenderer) {
 exports.default = WebGLRenderer;
 _utils.pluginTarget.mixin(WebGLRenderer);
 
-},{"../../const":224,"../../textures/BaseTexture":290,"../../utils":303,"../SystemRenderer":254,"./TextureGarbageCollector":260,"./TextureManager":261,"./WebGLState":263,"./managers/FilterManager":268,"./managers/MaskManager":269,"./managers/StencilManager":270,"./utils/ObjectRenderer":272,"./utils/RenderTarget":274,"./utils/mapWebGLDrawModesToPixi":277,"./utils/validateContext":278,"pixi-gl-core":207}],263:[function(require,module,exports){
+},{"../../const":242,"../../textures/BaseTexture":308,"../../utils":321,"../SystemRenderer":272,"./TextureGarbageCollector":278,"./TextureManager":279,"./WebGLState":281,"./managers/FilterManager":286,"./managers/MaskManager":287,"./managers/StencilManager":288,"./utils/ObjectRenderer":290,"./utils/RenderTarget":292,"./utils/mapWebGLDrawModesToPixi":295,"./utils/validateContext":296,"pixi-gl-core":211}],281:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -33221,7 +35235,7 @@ var WebGLState = function () {
 
 exports.default = WebGLState;
 
-},{"./utils/mapWebGLBlendModesToPixi":276}],264:[function(require,module,exports){
+},{"./utils/mapWebGLBlendModesToPixi":294}],282:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -33417,7 +35431,7 @@ var Filter = function () {
 
 exports.default = Filter;
 
-},{"../../../const":224,"../../../settings":279,"../../../utils":303,"./extractUniformsFromSrc":265}],265:[function(require,module,exports){
+},{"../../../const":242,"../../../settings":297,"../../../utils":321,"./extractUniformsFromSrc":283}],283:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -33479,7 +35493,7 @@ function extractUniformsFromString(string) {
     return uniforms;
 }
 
-},{"pixi-gl-core":207}],266:[function(require,module,exports){
+},{"pixi-gl-core":211}],284:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -33538,7 +35552,7 @@ function calculateSpriteMatrix(outputMatrix, filterArea, textureSize, sprite) {
     return mappedMatrix;
 }
 
-},{"../../../math":248}],267:[function(require,module,exports){
+},{"../../../math":266}],285:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -33626,7 +35640,7 @@ var SpriteMaskFilter = function (_Filter) {
 
 exports.default = SpriteMaskFilter;
 
-},{"../../../../math":248,"../../../../textures/TextureMatrix":294,"../Filter":264,"path":2}],268:[function(require,module,exports){
+},{"../../../../math":266,"../../../../textures/TextureMatrix":312,"../Filter":282,"path":430}],286:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -34220,7 +36234,7 @@ var FilterManager = function (_WebGLManager) {
 
 exports.default = FilterManager;
 
-},{"../../../Shader":222,"../../../math":248,"../filters/filterTransforms":266,"../utils/Quad":273,"../utils/RenderTarget":274,"./WebGLManager":271,"bit-twiddle":13}],269:[function(require,module,exports){
+},{"../../../Shader":240,"../../../math":266,"../filters/filterTransforms":284,"../utils/Quad":291,"../utils/RenderTarget":292,"./WebGLManager":289,"bit-twiddle":5}],287:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -34430,7 +36444,7 @@ var MaskManager = function (_WebGLManager) {
 
 exports.default = MaskManager;
 
-},{"../filters/spriteMask/SpriteMaskFilter":267,"./WebGLManager":271}],270:[function(require,module,exports){
+},{"../filters/spriteMask/SpriteMaskFilter":285,"./WebGLManager":289}],288:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -34583,7 +36597,7 @@ var StencilManager = function (_WebGLManager) {
 
 exports.default = StencilManager;
 
-},{"./WebGLManager":271}],271:[function(require,module,exports){
+},{"./WebGLManager":289}],289:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -34638,7 +36652,7 @@ var WebGLManager = function () {
 
 exports.default = WebGLManager;
 
-},{}],272:[function(require,module,exports){
+},{}],290:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -34716,7 +36730,7 @@ var ObjectRenderer = function (_WebGLManager) {
 
 exports.default = ObjectRenderer;
 
-},{"../managers/WebGLManager":271}],273:[function(require,module,exports){
+},{"../managers/WebGLManager":289}],291:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -34897,7 +36911,7 @@ var Quad = function () {
 
 exports.default = Quad;
 
-},{"../../../utils/createIndicesForQuads":301,"pixi-gl-core":207}],274:[function(require,module,exports){
+},{"../../../utils/createIndicesForQuads":319,"pixi-gl-core":211}],292:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -35224,7 +37238,7 @@ var RenderTarget = function () {
 
 exports.default = RenderTarget;
 
-},{"../../../const":224,"../../../math":248,"../../../settings":279,"pixi-gl-core":207}],275:[function(require,module,exports){
+},{"../../../const":242,"../../../math":266,"../../../settings":297,"pixi-gl-core":211}],293:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -35299,7 +37313,7 @@ function generateIfTestSrc(maxIfs) {
     return src;
 }
 
-},{"pixi-gl-core":207}],276:[function(require,module,exports){
+},{"pixi-gl-core":211}],294:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -35348,7 +37362,7 @@ function mapWebGLBlendModesToPixi(gl) {
     return array;
 }
 
-},{"../../../const":224}],277:[function(require,module,exports){
+},{"../../../const":242}],295:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -35380,7 +37394,7 @@ function mapWebGLDrawModesToPixi(gl) {
   return object;
 }
 
-},{"../../../const":224}],278:[function(require,module,exports){
+},{"../../../const":242}],296:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -35396,7 +37410,7 @@ function validateContext(gl) {
     }
 }
 
-},{}],279:[function(require,module,exports){
+},{}],297:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -35631,7 +37645,7 @@ exports.default = {
 
 };
 
-},{"./utils/canUploadSameBuffer":300,"./utils/maxRecommendedTextures":305}],280:[function(require,module,exports){
+},{"./utils/canUploadSameBuffer":318,"./utils/maxRecommendedTextures":323}],298:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -36254,7 +38268,7 @@ var Sprite = function (_Container) {
 
 exports.default = Sprite;
 
-},{"../const":224,"../display/Container":226,"../math":248,"../textures/Texture":293,"../utils":303}],281:[function(require,module,exports){
+},{"../const":242,"../display/Container":244,"../math":266,"../textures/Texture":311,"../utils":321}],299:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -36407,7 +38421,7 @@ exports.default = CanvasSpriteRenderer;
 
 _CanvasRenderer2.default.registerPlugin('sprite', CanvasSpriteRenderer);
 
-},{"../../const":224,"../../math":248,"../../renderers/canvas/CanvasRenderer":255,"./CanvasTinter":282}],282:[function(require,module,exports){
+},{"../../const":242,"../../math":266,"../../renderers/canvas/CanvasRenderer":273,"./CanvasTinter":300}],300:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -36658,7 +38672,7 @@ CanvasTinter.tintMethod = CanvasTinter.canUseMultiply ? CanvasTinter.tintWithMul
 
 exports.default = CanvasTinter;
 
-},{"../../renderers/canvas/utils/canUseNewCanvasBlendModes":258,"../../utils":303}],283:[function(require,module,exports){
+},{"../../renderers/canvas/utils/canUseNewCanvasBlendModes":276,"../../utils":321}],301:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -36711,7 +38725,7 @@ var Buffer = function () {
 
 exports.default = Buffer;
 
-},{}],284:[function(require,module,exports){
+},{}],302:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -37253,7 +39267,7 @@ exports.default = SpriteRenderer;
 
 _WebGLRenderer2.default.registerPlugin('sprite', SpriteRenderer);
 
-},{"../../renderers/webgl/WebGLRenderer":262,"../../renderers/webgl/utils/ObjectRenderer":272,"../../renderers/webgl/utils/checkMaxIfStatmentsInShader":275,"../../settings":279,"../../utils":303,"../../utils/createIndicesForQuads":301,"./BatchBuffer":283,"./generateMultiTextureShader":285,"bit-twiddle":13,"pixi-gl-core":207}],285:[function(require,module,exports){
+},{"../../renderers/webgl/WebGLRenderer":280,"../../renderers/webgl/utils/ObjectRenderer":290,"../../renderers/webgl/utils/checkMaxIfStatmentsInShader":293,"../../settings":297,"../../utils":321,"../../utils/createIndicesForQuads":319,"./BatchBuffer":301,"./generateMultiTextureShader":303,"bit-twiddle":5,"pixi-gl-core":211}],303:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -37316,7 +39330,7 @@ function generateSampleSrc(maxTextures) {
     return src;
 }
 
-},{"../../Shader":222,"path":2}],286:[function(require,module,exports){
+},{"../../Shader":240,"path":430}],304:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -37971,7 +39985,7 @@ var Text = function (_Sprite) {
 
 exports.default = Text;
 
-},{"../const":224,"../math":248,"../settings":279,"../sprites/Sprite":280,"../textures/Texture":293,"../utils":303,"../utils/trimCanvas":308,"./TextMetrics":287,"./TextStyle":288}],287:[function(require,module,exports){
+},{"../const":242,"../math":266,"../settings":297,"../sprites/Sprite":298,"../textures/Texture":311,"../utils":321,"../utils/trimCanvas":326,"./TextMetrics":305,"./TextStyle":306}],305:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -38273,7 +40287,7 @@ TextMetrics._context = canvas.getContext('2d');
  */
 TextMetrics._fonts = {};
 
-},{}],288:[function(require,module,exports){
+},{}],306:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -39057,7 +41071,7 @@ function areArraysEqual(array1, array2) {
     return true;
 }
 
-},{"../const":224,"../utils":303}],289:[function(require,module,exports){
+},{"../const":242,"../utils":321}],307:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -39219,7 +41233,7 @@ var BaseRenderTexture = function (_BaseTexture) {
 
 exports.default = BaseRenderTexture;
 
-},{"../settings":279,"./BaseTexture":290}],290:[function(require,module,exports){
+},{"../settings":297,"./BaseTexture":308}],308:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -40063,7 +42077,7 @@ var BaseTexture = function (_EventEmitter) {
 
 exports.default = BaseTexture;
 
-},{"../settings":279,"../utils":303,"../utils/determineCrossOrigin":302,"bit-twiddle":13,"eventemitter3":16}],291:[function(require,module,exports){
+},{"../settings":297,"../utils":321,"../utils/determineCrossOrigin":320,"bit-twiddle":5,"eventemitter3":8}],309:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -40217,7 +42231,7 @@ var RenderTexture = function (_Texture) {
 
 exports.default = RenderTexture;
 
-},{"./BaseRenderTexture":289,"./Texture":293}],292:[function(require,module,exports){
+},{"./BaseRenderTexture":307,"./Texture":311}],310:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -40479,7 +42493,7 @@ var Spritesheet = function () {
 
 exports.default = Spritesheet;
 
-},{"../":243,"../utils":303}],293:[function(require,module,exports){
+},{"../":261,"../utils":321}],311:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -41171,7 +43185,7 @@ Texture.WHITE = createWhiteTexture();
 removeAllHandlers(Texture.WHITE);
 removeAllHandlers(Texture.WHITE.baseTexture);
 
-},{"../math":248,"../settings":279,"../utils":303,"./BaseTexture":290,"./TextureUvs":295,"./VideoBaseTexture":296,"eventemitter3":16}],294:[function(require,module,exports){
+},{"../math":266,"../settings":297,"../utils":321,"./BaseTexture":308,"./TextureUvs":313,"./VideoBaseTexture":314,"eventemitter3":8}],312:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -41335,7 +43349,7 @@ var TextureMatrix = function () {
 
 exports.default = TextureMatrix;
 
-},{"../math/Matrix":245}],295:[function(require,module,exports){
+},{"../math/Matrix":263}],313:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -41440,7 +43454,7 @@ var TextureUvs = function () {
 
 exports.default = TextureUvs;
 
-},{"../math/GroupD8":244}],296:[function(require,module,exports){
+},{"../math/GroupD8":262}],314:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -41778,7 +43792,7 @@ function createSource(path, type) {
     return source;
 }
 
-},{"../const":224,"../ticker":299,"../utils":303,"../utils/determineCrossOrigin":302,"./BaseTexture":290}],297:[function(require,module,exports){
+},{"../const":242,"../ticker":317,"../utils":321,"../utils/determineCrossOrigin":320,"./BaseTexture":308}],315:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -42251,7 +44265,7 @@ var Ticker = function () {
 
 exports.default = Ticker;
 
-},{"../const":224,"../settings":279,"./TickerListener":298}],298:[function(require,module,exports){
+},{"../const":242,"../settings":297,"./TickerListener":316}],316:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -42425,7 +44439,7 @@ var TickerListener = function () {
 
 exports.default = TickerListener;
 
-},{}],299:[function(require,module,exports){
+},{}],317:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -42505,7 +44519,7 @@ shared.destroy = function () {
 exports.shared = shared;
 exports.Ticker = _Ticker2.default;
 
-},{"./Ticker":297}],300:[function(require,module,exports){
+},{"./Ticker":315}],318:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -42519,7 +44533,7 @@ function canUploadSameBuffer() {
 	return !ios;
 }
 
-},{}],301:[function(require,module,exports){
+},{}],319:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -42553,7 +44567,7 @@ function createIndicesForQuads(size) {
     return indices;
 }
 
-},{}],302:[function(require,module,exports){
+},{}],320:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -42609,7 +44623,7 @@ function determineCrossOrigin(url) {
     return '';
 }
 
-},{"url":8}],303:[function(require,module,exports){
+},{"url":436}],321:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -43083,7 +45097,7 @@ function premultiplyTintToRgba(tint, alpha, out, premultiply) {
     return out;
 }
 
-},{"../const":224,"../settings":279,"./mapPremultipliedBlendModes":304,"./mixin":306,"./pluginTarget":307,"eventemitter3":16,"ismobilejs":197,"remove-array-items":368}],304:[function(require,module,exports){
+},{"../const":242,"../settings":297,"./mapPremultipliedBlendModes":322,"./mixin":324,"./pluginTarget":325,"eventemitter3":8,"ismobilejs":189,"remove-array-items":386}],322:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -43126,7 +45140,7 @@ function mapPremultipliedBlendModes() {
     return array;
 }
 
-},{"../const":224}],305:[function(require,module,exports){
+},{"../const":242}],323:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -43148,7 +45162,7 @@ function maxRecommendedTextures(max) {
     return max;
 }
 
-},{"ismobilejs":197}],306:[function(require,module,exports){
+},{"ismobilejs":189}],324:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -43210,7 +45224,7 @@ function performMixins() {
     mixins.length = 0;
 }
 
-},{}],307:[function(require,module,exports){
+},{}],325:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -43276,7 +45290,7 @@ exports.default = {
     }
 };
 
-},{}],308:[function(require,module,exports){
+},{}],326:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -43352,7 +45366,7 @@ function trimCanvas(canvas) {
     };
 }
 
-},{}],309:[function(require,module,exports){
+},{}],327:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -44496,7 +46510,7 @@ function deprecation(core) {
     }
 }
 
-},{}],310:[function(require,module,exports){
+},{}],328:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -44676,7 +46690,7 @@ exports.default = CanvasExtract;
 
 core.CanvasRenderer.registerPlugin('extract', CanvasExtract);
 
-},{"../../core":243}],311:[function(require,module,exports){
+},{"../../core":261}],329:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -44701,7 +46715,7 @@ Object.defineProperty(exports, 'canvas', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./canvas/CanvasExtract":310,"./webgl/WebGLExtract":312}],312:[function(require,module,exports){
+},{"./canvas/CanvasExtract":328,"./webgl/WebGLExtract":330}],330:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -44924,7 +46938,7 @@ exports.default = WebGLExtract;
 
 core.WebGLRenderer.registerPlugin('extract', WebGLExtract);
 
-},{"../../core":243}],313:[function(require,module,exports){
+},{"../../core":261}],331:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -45333,7 +47347,7 @@ var AnimatedSprite = function (_core$Sprite) {
 
 exports.default = AnimatedSprite;
 
-},{"../core":243}],314:[function(require,module,exports){
+},{"../core":261}],332:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -45924,7 +47938,7 @@ exports.default = BitmapText;
 
 BitmapText.fonts = {};
 
-},{"../core":243,"../core/math/ObservablePoint":246,"../core/settings":279,"../core/utils":303}],315:[function(require,module,exports){
+},{"../core":261,"../core/math/ObservablePoint":264,"../core/settings":297,"../core/utils":321}],333:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -46370,7 +48384,7 @@ var TilingSprite = function (_core$Sprite) {
 
 exports.default = TilingSprite;
 
-},{"../core":243,"../core/sprites/canvas/CanvasTinter":282}],316:[function(require,module,exports){
+},{"../core":261,"../core/sprites/canvas/CanvasTinter":300}],334:[function(require,module,exports){
 'use strict';
 
 var _core = require('../core');
@@ -46774,7 +48788,7 @@ DisplayObject.prototype._cacheAsBitmapDestroy = function _cacheAsBitmapDestroy(o
     this.destroy(options);
 };
 
-},{"../core":243,"../core/textures/BaseTexture":290,"../core/textures/Texture":293,"../core/utils":303}],317:[function(require,module,exports){
+},{"../core":261,"../core/textures/BaseTexture":308,"../core/textures/Texture":311,"../core/utils":321}],335:[function(require,module,exports){
 'use strict';
 
 var _core = require('../core');
@@ -46808,7 +48822,7 @@ core.Container.prototype.getChildByName = function getChildByName(name) {
     return null;
 };
 
-},{"../core":243}],318:[function(require,module,exports){
+},{"../core":261}],336:[function(require,module,exports){
 'use strict';
 
 var _core = require('../core');
@@ -46841,7 +48855,7 @@ core.DisplayObject.prototype.getGlobalPosition = function getGlobalPosition() {
     return point;
 };
 
-},{"../core":243}],319:[function(require,module,exports){
+},{"../core":261}],337:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -46893,7 +48907,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 // imported for side effect of extending the prototype only, contains no exports
 
-},{"./AnimatedSprite":313,"./BitmapText":314,"./TilingSprite":315,"./cacheAsBitmap":316,"./getChildByName":317,"./getGlobalPosition":318,"./webgl/TilingSpriteRenderer":320}],320:[function(require,module,exports){
+},{"./AnimatedSprite":331,"./BitmapText":332,"./TilingSprite":333,"./cacheAsBitmap":334,"./getChildByName":335,"./getGlobalPosition":336,"./webgl/TilingSpriteRenderer":338}],338:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -47055,7 +49069,7 @@ exports.default = TilingSpriteRenderer;
 
 core.WebGLRenderer.registerPlugin('tilingSprite', TilingSpriteRenderer);
 
-},{"../../core":243,"../../core/const":224,"path":2}],321:[function(require,module,exports){
+},{"../../core":261,"../../core/const":242,"path":430}],339:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -47137,7 +49151,7 @@ var AlphaFilter = function (_core$Filter) {
 
 exports.default = AlphaFilter;
 
-},{"../../core":243,"path":2}],322:[function(require,module,exports){
+},{"../../core":261,"path":430}],340:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -47311,7 +49325,7 @@ var BlurFilter = function (_core$Filter) {
 
 exports.default = BlurFilter;
 
-},{"../../core":243,"./BlurXFilter":323,"./BlurYFilter":324}],323:[function(require,module,exports){
+},{"../../core":261,"./BlurXFilter":341,"./BlurYFilter":342}],341:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -47477,7 +49491,7 @@ var BlurXFilter = function (_core$Filter) {
 
 exports.default = BlurXFilter;
 
-},{"../../core":243,"./generateBlurFragSource":325,"./generateBlurVertSource":326,"./getMaxBlurKernelSize":327}],324:[function(require,module,exports){
+},{"../../core":261,"./generateBlurFragSource":343,"./generateBlurVertSource":344,"./getMaxBlurKernelSize":345}],342:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -47642,7 +49656,7 @@ var BlurYFilter = function (_core$Filter) {
 
 exports.default = BlurYFilter;
 
-},{"../../core":243,"./generateBlurFragSource":325,"./generateBlurVertSource":326,"./getMaxBlurKernelSize":327}],325:[function(require,module,exports){
+},{"../../core":261,"./generateBlurFragSource":343,"./generateBlurVertSource":344,"./getMaxBlurKernelSize":345}],343:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -47689,7 +49703,7 @@ function generateFragBlurSource(kernelSize) {
     return fragSource;
 }
 
-},{}],326:[function(require,module,exports){
+},{}],344:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -47733,7 +49747,7 @@ function generateVertBlurSource(kernelSize, x) {
     return vertSource;
 }
 
-},{}],327:[function(require,module,exports){
+},{}],345:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -47749,7 +49763,7 @@ function getMaxKernelSize(gl) {
     return kernelSize;
 }
 
-},{}],328:[function(require,module,exports){
+},{}],346:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -48300,7 +50314,7 @@ var ColorMatrixFilter = function (_core$Filter) {
 exports.default = ColorMatrixFilter;
 ColorMatrixFilter.prototype.grayscale = ColorMatrixFilter.prototype.greyscale;
 
-},{"../../core":243,"path":2}],329:[function(require,module,exports){
+},{"../../core":261,"path":430}],347:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -48410,7 +50424,7 @@ var DisplacementFilter = function (_core$Filter) {
 
 exports.default = DisplacementFilter;
 
-},{"../../core":243,"path":2}],330:[function(require,module,exports){
+},{"../../core":261,"path":430}],348:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -48464,7 +50478,7 @@ var FXAAFilter = function (_core$Filter) {
 
 exports.default = FXAAFilter;
 
-},{"../../core":243,"path":2}],331:[function(require,module,exports){
+},{"../../core":261,"path":430}],349:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -48543,7 +50557,7 @@ Object.defineProperty(exports, 'AlphaFilter', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./alpha/AlphaFilter":321,"./blur/BlurFilter":322,"./blur/BlurXFilter":323,"./blur/BlurYFilter":324,"./colormatrix/ColorMatrixFilter":328,"./displacement/DisplacementFilter":329,"./fxaa/FXAAFilter":330,"./noise/NoiseFilter":332}],332:[function(require,module,exports){
+},{"./alpha/AlphaFilter":339,"./blur/BlurFilter":340,"./blur/BlurXFilter":341,"./blur/BlurYFilter":342,"./colormatrix/ColorMatrixFilter":346,"./displacement/DisplacementFilter":347,"./fxaa/FXAAFilter":348,"./noise/NoiseFilter":350}],350:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -48640,7 +50654,7 @@ var NoiseFilter = function (_core$Filter) {
 
 exports.default = NoiseFilter;
 
-},{"../../core":243,"path":2}],333:[function(require,module,exports){
+},{"../../core":261,"path":430}],351:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -48754,7 +50768,7 @@ if (typeof _deprecation2.default === 'function') {
 global.PIXI = exports; // eslint-disable-line
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./accessibility":220,"./core":243,"./deprecation":309,"./extract":311,"./extras":319,"./filters":331,"./interaction":338,"./loaders":341,"./mesh":350,"./particles":353,"./polyfill":359,"./prepare":363}],334:[function(require,module,exports){
+},{"./accessibility":238,"./core":261,"./deprecation":327,"./extract":329,"./extras":337,"./filters":349,"./interaction":356,"./loaders":359,"./mesh":368,"./particles":371,"./polyfill":377,"./prepare":381}],352:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -48978,7 +50992,7 @@ var InteractionData = function () {
 
 exports.default = InteractionData;
 
-},{"../core":243}],335:[function(require,module,exports){
+},{"../core":261}],353:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -49063,7 +51077,7 @@ var InteractionEvent = function () {
 
 exports.default = InteractionEvent;
 
-},{}],336:[function(require,module,exports){
+},{}],354:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -50823,7 +52837,7 @@ exports.default = InteractionManager;
 core.WebGLRenderer.registerPlugin('interaction', InteractionManager);
 core.CanvasRenderer.registerPlugin('interaction', InteractionManager);
 
-},{"../core":243,"./InteractionData":334,"./InteractionEvent":335,"./InteractionTrackingData":337,"./interactiveTarget":339,"eventemitter3":16}],337:[function(require,module,exports){
+},{"../core":261,"./InteractionData":352,"./InteractionEvent":353,"./InteractionTrackingData":355,"./interactiveTarget":357,"eventemitter3":8}],355:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -50999,7 +53013,7 @@ InteractionTrackingData.FLAGS = Object.freeze({
     RIGHT_DOWN: 1 << 2
 });
 
-},{}],338:[function(require,module,exports){
+},{}],356:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -51051,7 +53065,7 @@ Object.defineProperty(exports, 'InteractionEvent', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./InteractionData":334,"./InteractionEvent":335,"./InteractionManager":336,"./InteractionTrackingData":337,"./interactiveTarget":339}],339:[function(require,module,exports){
+},{"./InteractionData":352,"./InteractionEvent":353,"./InteractionManager":354,"./InteractionTrackingData":355,"./interactiveTarget":357}],357:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -51168,7 +53182,7 @@ exports.default = {
   _trackedPointers: undefined
 };
 
-},{}],340:[function(require,module,exports){
+},{}],358:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -51260,7 +53274,7 @@ function parse(resource, texture) {
     resource.bitmapFont = _extras.BitmapText.registerFont(resource.data, texture);
 }
 
-},{"../core":243,"../extras":319,"path":2,"resource-loader":373}],341:[function(require,module,exports){
+},{"../core":261,"../extras":337,"path":430,"resource-loader":391}],359:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -51388,7 +53402,7 @@ AppPrototype.destroy = function destroy(removeView) {
     this._parentDestroy(removeView);
 };
 
-},{"../core/Application":221,"./bitmapFontParser":340,"./loader":342,"./spritesheetParser":343,"./textureParser":344,"resource-loader":373}],342:[function(require,module,exports){
+},{"../core/Application":239,"./bitmapFontParser":358,"./loader":360,"./spritesheetParser":361,"./textureParser":362,"resource-loader":391}],360:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -51559,7 +53573,7 @@ var Resource = _resourceLoader2.default.Resource;
 
 Resource.setExtensionXhrType('fnt', Resource.XHR_RESPONSE_TYPE.DOCUMENT);
 
-},{"./bitmapFontParser":340,"./spritesheetParser":343,"./textureParser":344,"eventemitter3":16,"resource-loader":373,"resource-loader/lib/middlewares/parsing/blob":374}],343:[function(require,module,exports){
+},{"./bitmapFontParser":358,"./spritesheetParser":361,"./textureParser":362,"eventemitter3":8,"resource-loader":391,"resource-loader/lib/middlewares/parsing/blob":392}],361:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -51618,7 +53632,7 @@ function getResourcePath(resource, baseUrl) {
     return _url2.default.resolve(resource.url.replace(baseUrl, ''), resource.data.meta.image);
 }
 
-},{"../core":243,"resource-loader":373,"url":8}],344:[function(require,module,exports){
+},{"../core":261,"resource-loader":391,"url":436}],362:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -51641,7 +53655,7 @@ var _Texture2 = _interopRequireDefault(_Texture);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"../core/textures/Texture":293,"resource-loader":373}],345:[function(require,module,exports){
+},{"../core/textures/Texture":311,"resource-loader":391}],363:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -52010,7 +54024,7 @@ Mesh.DRAW_MODES = {
   TRIANGLES: 1
 };
 
-},{"../core":243,"../core/textures/Texture":293}],346:[function(require,module,exports){
+},{"../core":261,"../core/textures/Texture":311}],364:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -52396,7 +54410,7 @@ var NineSlicePlane = function (_Plane) {
 
 exports.default = NineSlicePlane;
 
-},{"./Plane":347}],347:[function(require,module,exports){
+},{"./Plane":365}],365:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -52537,7 +54551,7 @@ var Plane = function (_Mesh) {
 
 exports.default = Plane;
 
-},{"./Mesh":345}],348:[function(require,module,exports){
+},{"./Mesh":363}],366:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -52773,7 +54787,7 @@ var Rope = function (_Mesh) {
 
 exports.default = Rope;
 
-},{"./Mesh":345}],349:[function(require,module,exports){
+},{"./Mesh":363}],367:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -53056,7 +55070,7 @@ exports.default = MeshSpriteRenderer;
 
 core.CanvasRenderer.registerPlugin('mesh', MeshSpriteRenderer);
 
-},{"../../core":243,"../Mesh":345}],350:[function(require,module,exports){
+},{"../../core":261,"../Mesh":363}],368:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -53117,7 +55131,7 @@ Object.defineProperty(exports, 'Rope', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./Mesh":345,"./NineSlicePlane":346,"./Plane":347,"./Rope":348,"./canvas/CanvasMeshRenderer":349,"./webgl/MeshRenderer":351}],351:[function(require,module,exports){
+},{"./Mesh":363,"./NineSlicePlane":364,"./Plane":365,"./Rope":366,"./canvas/CanvasMeshRenderer":367,"./webgl/MeshRenderer":369}],369:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -53268,7 +55282,7 @@ exports.default = MeshRenderer;
 
 core.WebGLRenderer.registerPlugin('mesh', MeshRenderer);
 
-},{"../../core":243,"../Mesh":345,"path":2,"pixi-gl-core":207}],352:[function(require,module,exports){
+},{"../../core":261,"../Mesh":363,"path":430,"pixi-gl-core":211}],370:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -53646,7 +55660,7 @@ var ParticleContainer = function (_core$Container) {
 
 exports.default = ParticleContainer;
 
-},{"../core":243,"../core/utils":303}],353:[function(require,module,exports){
+},{"../core":261,"../core/utils":321}],371:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -53671,7 +55685,7 @@ Object.defineProperty(exports, 'ParticleRenderer', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./ParticleContainer":352,"./webgl/ParticleRenderer":355}],354:[function(require,module,exports){
+},{"./ParticleContainer":370,"./webgl/ParticleRenderer":373}],372:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -53914,7 +55928,7 @@ var ParticleBuffer = function () {
 
 exports.default = ParticleBuffer;
 
-},{"../../core/utils/createIndicesForQuads":301,"pixi-gl-core":207}],355:[function(require,module,exports){
+},{"../../core/utils/createIndicesForQuads":319,"pixi-gl-core":211}],373:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -54390,7 +56404,7 @@ exports.default = ParticleRenderer;
 
 core.WebGLRenderer.registerPlugin('particle', ParticleRenderer);
 
-},{"../../core":243,"../../core/utils":303,"./ParticleBuffer":354,"./ParticleShader":356}],356:[function(require,module,exports){
+},{"../../core":261,"../../core/utils":321,"./ParticleBuffer":372,"./ParticleShader":374}],374:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -54433,7 +56447,7 @@ var ParticleShader = function (_Shader) {
 
 exports.default = ParticleShader;
 
-},{"../../core/Shader":222}],357:[function(require,module,exports){
+},{"../../core/Shader":240}],375:[function(require,module,exports){
 "use strict";
 
 // References:
@@ -54451,7 +56465,7 @@ if (!Math.sign) {
     };
 }
 
-},{}],358:[function(require,module,exports){
+},{}],376:[function(require,module,exports){
 'use strict';
 
 var _objectAssign = require('object-assign');
@@ -54466,7 +56480,7 @@ if (!Object.assign) {
 // https://github.com/sindresorhus/object-assign
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
 
-},{"object-assign":199}],359:[function(require,module,exports){
+},{"object-assign":191}],377:[function(require,module,exports){
 'use strict';
 
 require('./Object.assign');
@@ -54491,7 +56505,7 @@ if (!window.Uint16Array) {
     window.Uint16Array = Array;
 }
 
-},{"./Math.sign":357,"./Object.assign":358,"./requestAnimationFrame":360}],360:[function(require,module,exports){
+},{"./Math.sign":375,"./Object.assign":376,"./requestAnimationFrame":378}],378:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -54568,7 +56582,7 @@ if (!global.cancelAnimationFrame) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],361:[function(require,module,exports){
+},{}],379:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -55056,7 +57070,7 @@ function findTextStyle(item, queue) {
     return false;
 }
 
-},{"../core":243,"./limiters/CountLimiter":364}],362:[function(require,module,exports){
+},{"../core":261,"./limiters/CountLimiter":382}],380:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -55176,7 +57190,7 @@ function uploadBaseTextures(prepare, item) {
 
 core.CanvasRenderer.registerPlugin('prepare', CanvasPrepare);
 
-},{"../../core":243,"../BasePrepare":361}],363:[function(require,module,exports){
+},{"../../core":261,"../BasePrepare":379}],381:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -55228,7 +57242,7 @@ Object.defineProperty(exports, 'TimeLimiter', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./BasePrepare":361,"./canvas/CanvasPrepare":362,"./limiters/CountLimiter":364,"./limiters/TimeLimiter":365,"./webgl/WebGLPrepare":366}],364:[function(require,module,exports){
+},{"./BasePrepare":379,"./canvas/CanvasPrepare":380,"./limiters/CountLimiter":382,"./limiters/TimeLimiter":383,"./webgl/WebGLPrepare":384}],382:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -55286,7 +57300,7 @@ var CountLimiter = function () {
 
 exports.default = CountLimiter;
 
-},{}],365:[function(require,module,exports){
+},{}],383:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -55344,7 +57358,7 @@ var TimeLimiter = function () {
 
 exports.default = TimeLimiter;
 
-},{}],366:[function(require,module,exports){
+},{}],384:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -55466,7 +57480,7 @@ function findGraphics(item, queue) {
 
 core.WebGLRenderer.registerPlugin('prepare', WebGLPrepare);
 
-},{"../../core":243,"../BasePrepare":361}],367:[function(require,module,exports){
+},{"../../core":261,"../BasePrepare":379}],385:[function(require,module,exports){
 //http://www.blackpawn.com/texts/pointinpoly/
 module.exports = function pointInTriangle(point, triangle) {
     //compute vectors & dot products
@@ -55488,7 +57502,7 @@ module.exports = function pointInTriangle(point, triangle) {
         v = (dot00*dot12 - dot01*dot02) * inv
     return u>=0 && v>=0 && (u+v < 1)
 }
-},{}],368:[function(require,module,exports){
+},{}],386:[function(require,module,exports){
 'use strict'
 
 /**
@@ -55518,7 +57532,7 @@ module.exports = function removeItems(arr, startIdx, removeCount)
   arr.length = len
 }
 
-},{}],369:[function(require,module,exports){
+},{}],387:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -56136,7 +58150,7 @@ var Loader = function () {
 
 exports.default = Loader;
 
-},{"./Resource":370,"./async":371,"mini-signals":198,"parse-uri":200}],370:[function(require,module,exports){
+},{"./Resource":388,"./async":389,"mini-signals":190,"parse-uri":192}],388:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -57292,7 +59306,7 @@ function reqType(xhr) {
     return xhr.toString().replace('object ', '');
 }
 
-},{"mini-signals":198,"parse-uri":200}],371:[function(require,module,exports){
+},{"mini-signals":190,"parse-uri":192}],389:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -57501,7 +59515,7 @@ function queue(worker, concurrency) {
     return q;
 }
 
-},{}],372:[function(require,module,exports){
+},{}],390:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -57569,7 +59583,7 @@ function encodeBinary(input) {
     return output;
 }
 
-},{}],373:[function(require,module,exports){
+},{}],391:[function(require,module,exports){
 'use strict';
 
 // import Loader from './Loader';
@@ -57593,7 +59607,7 @@ module.exports = Loader;
 // export default Loader;
 module.exports.default = Loader;
 
-},{"./Loader":369,"./Resource":370,"./async":371,"./b64":372}],374:[function(require,module,exports){
+},{"./Loader":387,"./Resource":388,"./async":389,"./b64":390}],392:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -57681,7 +59695,7 @@ function blobMiddlewareFactory() {
     };
 }
 
-},{"../../Resource":370,"../../b64":372}],375:[function(require,module,exports){
+},{"../../Resource":388,"../../b64":390}],393:[function(require,module,exports){
 // A library of seedable RNGs implemented in Javascript.
 //
 // Usage:
@@ -57743,7 +59757,7 @@ sr.tychei = tychei;
 
 module.exports = sr;
 
-},{"./lib/alea":376,"./lib/tychei":377,"./lib/xor128":378,"./lib/xor4096":379,"./lib/xorshift7":380,"./lib/xorwow":381,"./seedrandom":382}],376:[function(require,module,exports){
+},{"./lib/alea":394,"./lib/tychei":395,"./lib/xor128":396,"./lib/xor4096":397,"./lib/xorshift7":398,"./lib/xorwow":399,"./seedrandom":400}],394:[function(require,module,exports){
 // A port of an algorithm by Johannes Baagøe <baagoe@baagoe.com>, 2010
 // http://baagoe.com/en/RandomMusings/javascript/
 // https://github.com/nquinlan/better-random-numbers-for-javascript-mirror
@@ -57859,7 +59873,7 @@ if (module && module.exports) {
 
 
 
-},{}],377:[function(require,module,exports){
+},{}],395:[function(require,module,exports){
 // A Javascript implementaion of the "Tyche-i" prng algorithm by
 // Samuel Neves and Filipe Araujo.
 // See https://eden.dei.uc.pt/~sneves/pubs/2011-snfa2.pdf
@@ -57964,7 +59978,7 @@ if (module && module.exports) {
 
 
 
-},{}],378:[function(require,module,exports){
+},{}],396:[function(require,module,exports){
 // A Javascript implementaion of the "xor128" prng algorithm by
 // George Marsaglia.  See http://www.jstatsoft.org/v08/i14/paper
 
@@ -58047,7 +60061,7 @@ if (module && module.exports) {
 
 
 
-},{}],379:[function(require,module,exports){
+},{}],397:[function(require,module,exports){
 // A Javascript implementaion of Richard Brent's Xorgens xor4096 algorithm.
 //
 // This fast non-cryptographic random number generator is designed for
@@ -58195,7 +60209,7 @@ if (module && module.exports) {
   (typeof define) == 'function' && define   // present with an AMD loader
 );
 
-},{}],380:[function(require,module,exports){
+},{}],398:[function(require,module,exports){
 // A Javascript implementaion of the "xorshift7" algorithm by
 // François Panneton and Pierre L'ecuyer:
 // "On the Xorgshift Random Number Generators"
@@ -58294,7 +60308,7 @@ if (module && module.exports) {
 );
 
 
-},{}],381:[function(require,module,exports){
+},{}],399:[function(require,module,exports){
 // A Javascript implementaion of the "xorwow" prng algorithm by
 // George Marsaglia.  See http://www.jstatsoft.org/v08/i14/paper
 
@@ -58382,7 +60396,7 @@ if (module && module.exports) {
 
 
 
-},{}],382:[function(require,module,exports){
+},{}],400:[function(require,module,exports){
 /*
 Copyright 2014 David Bau.
 
@@ -58631,7 +60645,7 @@ if ((typeof module) == 'object' && module.exports) {
   Math    // math: package containing random, pow, and seedrandom
 );
 
-},{"crypto":1}],383:[function(require,module,exports){
+},{"crypto":429}],401:[function(require,module,exports){
 // TinyColor v1.4.1
 // https://github.com/bgrins/TinyColor
 // Brian Grinstead, MIT License
@@ -59828,7 +61842,592 @@ else {
 
 })(Math);
 
-},{}],384:[function(require,module,exports){
+},{}],402:[function(require,module,exports){
+// angle.js <https://github.com/davidfig/anglejs>
+// Released under MIT license <https://github.com/davidfig/angle/blob/master/LICENSE>
+// Author: David Figatner
+// Copyright (c) 2016-17 YOPEY YOPEY LLC
+
+const _toDegreeConversion = 180 / Math.PI
+const _toRadianConversion = Math.PI / 180
+
+
+/** @constant {number} */
+const UP = Math.PI / 2
+const DOWN = 3 * Math.PI / 2
+const LEFT = Math.PI
+const RIGHT = 0
+
+const NORTH = UP
+const SOUTH = DOWN
+const WEST = LEFT
+const EAST = RIGHT
+
+const PI_2 = Math.PI * 2
+const PI_QUARTER = Math.PI / 4
+const PI_HALF = Math.PI / 2
+
+/**
+ * converts from radians to degrees (all other functions expect radians)
+ * @param {number} radians
+ * @return {number} degrees
+ */
+function toDegrees(radians)
+{
+    return radians * _toDegreeConversion
+}
+
+/**
+ * converts from degrees to radians (all other functions expect radians)
+ * @param {number} degrees
+ * @return {number} radians
+ */
+function toRadians(degrees)
+{
+    return degrees * _toRadianConversion
+}
+
+/**
+ * returns whether the target angle is between angle1 and angle2 (in radians)
+ * (based on: http://stackoverflow.com/questions/11406189/determine-if-angle-lies-between-2-other-angles)
+ * @param {number} target angle
+ * @param {number} angle1
+ * @param {number} angle2
+ * @return {boolean}
+ */
+function isAngleBetween(target, angle1, angle2)
+{
+    const rAngle = ((angle2 - angle1) % PI_2 + PI_2) % PI_2
+    if (rAngle >= Math.PI)
+    {
+        const swap = angle1
+        angle1 = angle2
+        angle2 = swap
+    }
+
+    if (angle1 <= angle2)
+    {
+        return target >= angle1 && target <= angle2
+    }
+    else
+    {
+        return target >= angle1 || target <= angle2
+    }
+}
+
+/**
+ * returns +1 or -1 based on whether the difference between two angles is positive or negative (in radians)
+ * @param {number} target angle
+ * @param {number} source angle
+ * @return {number} 1 or -1
+ */
+function differenceAnglesSign(target, source)
+{
+    function mod(a, n)
+    {
+        return (a % n + n) % n
+    }
+
+    const a = target - source
+    return mod((a + Math.PI), PI_2) - Math.PI > 0 ? 1 : -1
+}
+
+/**
+ * returns the normalized difference between two angles (in radians)
+ * @param {number} a - first angle
+ * @param {number} b - second angle
+ * @return {number} normalized difference between a and b
+ */
+function differenceAngles(a, b)
+{
+    const c = Math.abs(a - b) % PI_2
+    return c > Math.PI ? (PI_2 - c) : c
+}
+
+/**
+ * returns a target angle that is the shortest way to rotate an object between start and to--may choose a negative angle
+ * @param {number} start
+ * @param {number} to
+ * @return {number} shortest target angle
+ */
+function shortestAngle(start, to)
+{
+    const difference = differenceAngles(to, start)
+    const sign = differenceAnglesSign(to, start)
+    const delta = difference * sign
+    return delta + start
+}
+
+/**
+ * returns the normalized angle (0 - PI x 2)
+ * @param {number} radians
+ * @return {number} normalized angle in radians
+ */
+function normalize(radians)
+{
+    return radians - PI_2 * Math.floor(radians / PI_2)
+}
+
+/**
+ * returns angle between two points (in radians)
+ * @param {Point} [point1] {x: x, y: y}
+ * @param {Point} [point2] {x: x, y: y}
+ * @param {number} [x1]
+ * @param {number} [y1]
+ * @param {number} [x2]
+ * @param {number} [y2]
+ * @return {number} angle
+ */
+function angleTwoPoints(/* (point1, point2) OR (x1, y1, x2, y2) */)
+{
+    if (arguments.length === 4)
+    {
+        return Math.atan2(arguments[3] - arguments[1], arguments[2] - arguments[0])
+    }
+    else
+    {
+        return Math.atan2(arguments[1].y - arguments[0].y, arguments[1].x - arguments[0].x)
+    }
+}
+
+/**
+ * returns distance between two points
+ * @param {Point} [point1] {x: x, y: y}
+ * @param {Point} [point2] {x: x, y: y}
+ * @param {number} [x1]
+ * @param {number} [y1]
+ * @param {number} [x2]
+ * @param {number} [y2]
+ * @return {number} distance
+ */
+function distanceTwoPoints(/* (point1, point2) OR (x1, y1, x2, y2) */)
+{
+    if (arguments.length === 2)
+    {
+        return Math.sqrt(Math.pow(arguments[1].x - arguments[0].x, 2) + Math.pow(arguments[1].y - arguments[0].y, 2))
+    }
+    else
+    {
+        return Math.sqrt(Math.pow(arguments[2] - arguments[0], 2) + Math.pow(arguments[3] - arguments[1], 2))
+    }
+}
+
+/**
+ * returns the squared distance between two points
+ * @param {Point} [point1] {x: x, y: y}
+ * @param {Point} [point2] {x: x, y: y}
+ * @param {number} [x1]
+ * @param {number} [y1]
+ * @param {number} [x2]
+ * @param {number} [y2]
+ * @return {number} squared distance
+ */
+function distanceTwoPointsSquared(/* (point1, point2) OR (x1, y1, x2, y2) */)
+{
+    if (arguments.length === 2)
+    {
+        return Math.pow(arguments[1].x - arguments[0].x, 2) + Math.pow(arguments[1].y - arguments[0].y, 2)
+    }
+    else
+    {
+        return Math.pow(arguments[2] - arguments[0], 2) + Math.pow(arguments[3] - arguments[1], 2)
+    }
+}
+
+/**
+ * returns the closest cardinal (N, S, E, W) to the given angle (in radians)
+ * @param {number} angle
+ * @return {number} closest cardinal in radians
+ */
+function closestAngle(angle)
+{
+    const left = differenceAngles(angle, LEFT)
+    const right = differenceAngles(angle, RIGHT)
+    const up = differenceAngles(angle, UP)
+    const down = differenceAngles(angle, DOWN)
+    if (left <= right && left <= up && left <= down)
+    {
+        return LEFT
+    }
+    else if (right <= up && right <= down)
+    {
+        return RIGHT
+    }
+    else if (up <= down)
+    {
+        return UP
+    }
+    else
+    {
+        return DOWN
+    }
+}
+
+/**
+ * checks whether angles a1 and a2 are equal (after normalizing)
+ * @param {number} a1
+ * @param {number} a2
+ * @param {number} [wiggle] return true if the difference between the angles is <= wiggle
+ * @return {boolean} a1 === a2
+ */
+function equals(a1, a2, wiggle)
+{
+    if (wiggle)
+    {
+        return differenceAngles(a1, a2) < wiggle
+    }
+    else
+    {
+        return normalize(a1) === normalize(a2)
+    }
+}
+
+/**
+ * return a text representation of the cardinal direction
+ * @param {number} angle
+ * @returns {string} UP, DOWN, LEFT, RIGHT, or NOT CARDINAL
+ */
+function explain(angle)
+{
+    switch (angle)
+    {
+        case UP: return 'UP'
+        case DOWN: return 'DOWN'
+        case LEFT: return 'LEFT'
+        case RIGHT: return 'RIGHT'
+        default: return 'NOT CARDINAL'
+    }
+}
+
+module.exports = {
+    UP, DOWN, LEFT, RIGHT,
+    NORTH, SOUTH, WEST, EAST,
+    PI_2, PI_QUARTER, PI_HALF,
+
+    toDegrees,
+    toRadians,
+    isAngleBetween,
+    differenceAnglesSign,
+    differenceAngles,
+    shortestAngle,
+    normalize,
+    angleTwoPoints,
+    distanceTwoPoints,
+    distanceTwoPointsSquared,
+    closestAngle,
+    equals,
+    explain
+}
+},{}],403:[function(require,module,exports){
+/**
+ * @file color.js
+ * @author David Figatner
+ * @license MIT
+ * @copyright YOPEY YOPEY LLC 2016
+ * {@link https://github.com/davidfig/color}
+ */
+
+const Random = require('yy-random');
+
+/** @class */
+class Color
+{
+    /**
+     * converts a #FFFFFF to 0x123456
+     * @param  {string} color
+     * @return {string}
+     */
+    poundToHex(color)
+    {
+        return '0x' + parseInt(color.substr(1)).toString(16);
+    }
+
+    /**
+     * converts a 0x123456 to #FFFFFF
+     * @param  {string} color
+     * @return {string}
+     */
+    hexToPound(color)
+    {
+        return '#' + color.substr(2);
+    }
+
+    /**
+     * converts a number to #FFFFFF
+     * @param  {number} color
+     * @return {string}
+     */
+    valueToPound(color)
+    {
+        return '#' + color.toString(16);
+    }
+
+    /**
+     * based on tinycolor
+     * https://github.com/bgrins/TinyColor
+     * BSD license: https://github.com/bgrins/TinyColor/blob/master/LICENSE
+     * @param {string} color
+     * @returns {object}
+     */
+    hexToHsl (color)
+    {
+        var rgb = this.hexToRgb(color),
+            r = rgb.r,
+            g = rgb.g,
+            b = rgb.b;
+        var max = Math.max(r, g, b),
+            min = Math.min(r, g, b);
+        var h, s, l = (max + min) / 2;
+
+        if (max === min)
+        {
+            h = s = 0; // achromatic
+        }
+        else
+        {
+            var d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+            }
+
+            h /= 6;
+        }
+
+        return { h: h, s: s, l: l };
+    }
+
+    /** based on tinycolor
+    * https://github.com/bgrins/TinyColor
+    * BSD license: https://github.com/bgrins/TinyColor/blob/master/LICENSE
+    * @param {object|number} color {h, s, b} or h
+    * @param {number} [s]
+    * @param {number} [l]
+    * @returns number
+    */
+    hslToHex(color)
+    {
+        var r, g, b, h, s, l;
+        if (arguments.length === 1)
+        {
+            h = color.h,
+            s = color.s,
+            l = color.l;
+        }
+        else
+        {
+            h = arguments[0];
+            s = arguments[1];
+            l = arguments[2];
+        }
+
+        function hue2rgb(p, q, t) {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+        }
+
+        if (s === 0)
+        {
+            r = g = b = l; // achromatic
+        }
+        else
+        {
+            var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            var p = 2 * l - q;
+            r = hue2rgb(p, q, h + 1/3);
+            g = hue2rgb(p, q, h);
+            b = hue2rgb(p, q, h - 1/3);
+        }
+
+        return this.rgbToHex(r * 255, g * 255, b * 255);
+    }
+
+    /* darkens a color by the percentage
+    * @param {object} color in hex (0xabcdef)
+    * @param {number} amount
+    * @return {number}
+    */
+    darken(color, amount)
+    {
+        return this.blend(amount, color, 0);
+    }
+
+    /** based on tinycolor
+    * https://github.com/bgrins/TinyColor
+    * BSD license: https://github.com/bgrins/TinyColor/blob/master/LICENSE
+    * @param {object} color
+    * @param {number} amount
+    */
+    saturate(color, amount)
+    {
+        amount = (amount === 0) ? 0 : (amount || 10);
+        var hsl = this.hexToHsl(color);
+        hsl.s += amount / 100;
+        hsl.s = Math.min(1, Math.max(0, hsl.s));
+        return this.hslToHex(hsl);
+    }
+
+    /** based on tinycolor
+    * https://github.com/bgrins/TinyColor
+    * BSD license: https://github.com/bgrins/TinyColor/blob/master/LICENSE
+    * @param {object} color
+    * @param {number} amount
+    */
+    desaturate(color, amount) {
+        amount = (amount === 0) ? 0 : (amount || 10);
+        var hsl = this.hexToHsl(color);
+        hsl.s -= amount / 100;
+        hsl.s = Math.min(1, Math.max(0, hsl.s));
+        return this.hslToHex(hsl);
+    }
+
+    /**
+     * blends two colors together
+     * @param  {number} percent [0.0 - 1.0]
+     * @param  {string} color1 first color in 0x123456 format
+     * @param  {string} color2 second color in 0x123456 format
+     * @return {number}
+     */
+    blend(percent, color1, color2)
+    {
+        if (percent === 0)
+        {
+            return color1;
+        }
+        if (percent === 1)
+        {
+            return color2;
+        }
+        var r1 = color1 >> 16;
+        var g1 = color1 >> 8 & 0x0000ff;
+        var b1 = color1 & 0x0000ff;
+        var r2 = color2 >> 16;
+        var g2 = color2 >> 8 & 0x0000ff;
+        var b2 = color2 & 0x0000ff;
+        var percent1 = 1 - percent;
+        var r = percent1 * r1 + percent * r2;
+        var g = percent1 * g1 + percent * g2;
+        var b = percent1 * b1 + percent * b2;
+        return r << 16 | g << 8 | b;
+    }
+
+    /**
+     * returns a hex color into an rgb value
+     * @param  {number} hex
+     * @return {string}
+     */
+    hexToRgb(hex)
+    {
+        if (hex === 0)
+        {
+            hex = '0x000000';
+        }
+        else if (typeof hex !== 'string')
+        {
+            var s = '000000' + hex.toString(16);
+            hex = '0x' + s.substr(s.length - 6);
+        }
+        var result = /^0x?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : null;
+    }
+
+    /**
+     * rgb color to hex in the form of 0x123456
+     * @param  {number|string} r first number or 'rgb(...)' string
+     * @param  {number|null} g
+     * @param  {number|null} b
+     * @return {string}
+     */
+    rgbToHex(r, g, b)
+    {
+        if (arguments.length === 1) {
+            if (Array.isArray(arguments[0])) {
+                var number = arguments[0];
+                r = number[0];
+                g = number[1];
+                b = number[2];
+            } else {
+                var parse = r.replace(/( *rgb *\( *)|( )|(\) *;?)/,'');
+                var numbers = parse.split(',');
+                r = numbers[0];
+                g = numbers[1];
+                b = numbers[2];
+            }
+        }
+        return '0x' + ((1 << 24) + (parseInt(r) << 16) + (parseInt(g) << 8) + parseInt(b)).toString(16).slice(1);
+    }
+
+    /**
+     * returns a random color with balanced r, g, b values (i.e., r, g, b either have the same value or are 0)
+     * @param {number} min value for random number
+     * @param {number} max value for random number
+     * @return {number} color
+     */
+    random(min, max)
+    {
+        function random()
+        {
+            return Random.range(min, max);
+        }
+
+        var colors = [{r:1, g:1, b:1}, {r:1, g:1, b:0}, {r:1,g:0,b:1}, {r:0,g:1,b:1}, {r:1,g:0,b:0}, {r:0,g:1,b:0}, {r:0,g:0,b:1}];
+        var color = Random.pick(colors);
+        min = min || 0;
+        max = max || 255;
+        return this.rgbToHex(color.r ? random() : 0, color.g ? random() : 0, color.b ? random() : 0);
+    }
+
+    // h: 0-360, s: 0-1, l: 0-1
+    /**
+     * returns a random color based on hsl
+     * @param {number} hMin [0, 360]
+     * @param {number} hMax [hMin, 360]
+     * @param {number} sMin [0, 1]
+     * @param {number} sMax [sMin, 1]
+     * @param {number} lMin [0, 1]
+     * @param {number} lMax [lMin, 1]
+     */
+    randomHSL(hMin, hMax, sMin, sMax, lMin, lMax)
+    {
+        var color = {
+            h: Random.range(hMin, hMax),
+            s: Random.range(sMin, sMax, true),
+            l: Random.range(lMin, lMax, true)
+        };
+        return this.hslToHex(color);
+    }
+
+    /**
+     * returns random colors based on HSL with different hues
+     * based on http://martin.ankerl.com/2009/12/09/how-to-create-random-colors-programmatically/
+     * @returns {number[]} colors in hex format (0x123456)
+     */
+    randomGoldenRatioHSL(count, saturation, luminosity)
+    {
+        const goldenRatio = 0.618033988749895;
+        let h = Random.get(1, true);
+        const colors = [];
+        for (let i = 0; i < count; i++)
+        {
+            colors.push(this.hslToHex(h, saturation, luminosity));
+            h = (h + goldenRatio) % 1;
+        }
+        return colors;
+    }
+};
+
+module.exports = new Color();
+},{"yy-random":415}],404:[function(require,module,exports){
 // yy-counter
 // In-browser counter to watch changeable values like counters or FPS
 // David Figatner
@@ -59946,7 +62545,7 @@ module.exports = class Counter
         this.div.innerHTML = s
     }
 }
-},{}],385:[function(require,module,exports){
+},{}],405:[function(require,module,exports){
 const Color = require('tinycolor2')
 const Counter = require('yy-counter')
 
@@ -60178,7 +62777,7 @@ module.exports = class FPS
         }
     }
 }
-},{"tinycolor2":383,"yy-counter":384}],386:[function(require,module,exports){
+},{"tinycolor2":401,"yy-counter":404}],406:[function(require,module,exports){
 /* Copyright (c) 2017 YOPEY YOPEY LLC */
 
 const EventEmitter = require('eventemitter3')
@@ -60369,10 +62968,19 @@ module.exports = class Input extends EventEmitter
         for (let i = 0; i < touches.length; i++)
         {
             const touch = touches[i]
+            const x = touch.clientX
+            const y = touch.clientY
+            if (this.clamp)
+            {
+                if (this.outsideClamp(x, y))
+                {
+                    continue
+                }
+            }
             const entry = {
                 identifier: touch.identifier,
-                x: touch.clientX,
-                y: touch.clientY
+                x,
+                y
             }
             this.pointers.push(entry)
             this.handleDown(touch.clientX, touch.clientY, e, touch.identifier)
@@ -60393,6 +63001,10 @@ module.exports = class Input extends EventEmitter
         for (let i = 0; i < e.changedTouches.length; i++)
         {
             const touch = e.changedTouches[i]
+            if (this.clamp && !this.findTouch(touch.identifier))
+            {
+                continue
+            }
             this.handleMove(touch.clientX, touch.clientY, e, touch.identifier)
         }
     }
@@ -60438,7 +63050,10 @@ module.exports = class Input extends EventEmitter
         this.pointers.push({id: 'mouse'})
         const x = window.navigator.msPointerEnabled ? e.offsetX : e.clientX
         const y = window.navigator.msPointerEnabled ? e.offsetY : e.clientY
-        this.handleDown(x, y, e, 'mouse')
+        if (!this.clamp || !this.outsideClamp(x, y))
+        {
+            this.handleDown(x, y, e, 'mouse')
+        }
     }
 
     /**
@@ -60511,6 +63126,10 @@ module.exports = class Input extends EventEmitter
 
     wheel(e)
     {
+        if (this.preventDefault)
+        {
+            e.preventDefault()
+        }
         this.emit('wheel', e.deltaX, e.deltaY, e.deltaZ, { event: e, id: 'mouse', x: e.clientX, y: e.clientY })
     }
 
@@ -60535,13 +63154,13 @@ module.exports = class Input extends EventEmitter
         if (this.chromeDebug)
         {
             // allow chrome to open developer console
-            if (this.keys.meta && code === 73)
+            if (this.keys.shift && this.keys.ctrl && code === 73)
             {
                 return
             }
 
             // reload page with meta + r
-            if (code === 82 && this.keys.meta)
+            if (code === 82 && this.keys.ctrl)
             {
                 window.location.reload()
                 return
@@ -60571,10 +63190,25 @@ module.exports = class Input extends EventEmitter
         const code = (typeof e.which === 'number') ? e.which : e.keyCode
         this.emit('keyup', code, this.keys, { event: e, input: this })
     }
+
+    /**
+     * clamp screen to only accept pointers in rectangle in the down event
+     * @param {number} x
+     * @param {number} y
+     */
+    clampDown(x, y, width, height)
+    {
+        this.clamp = { x, y, width, height }
+    }
+
+    outsideClamp(x, y)
+    {
+        return x < this.clamp.x || x > this.clamp.x + this.clamp.width || y < this.clamp.y || y > this.clamp.y + this.clamp.height
+    }
 }
-},{"eventemitter3":16}],387:[function(require,module,exports){
+},{"eventemitter3":8}],407:[function(require,module,exports){
 module.exports = require('./src/loop')
-},{"./src/loop":389}],388:[function(require,module,exports){
+},{"./src/loop":409}],408:[function(require,module,exports){
 const Events = require('eventemitter3')
 
 /** Entry class for Loop */
@@ -60655,7 +63289,7 @@ class Entry extends Events
 }
 
 module.exports = Entry
-},{"eventemitter3":16}],389:[function(require,module,exports){
+},{"eventemitter3":8}],409:[function(require,module,exports){
 /* Copyright (c) 2017 YOPEY YOPEY LLC */
 
 const Events = require('eventemitter3')
@@ -60854,7 +63488,898 @@ const Entry = require('./entry')
 
 Loop.entry = Entry
 module.exports = Loop
-},{"./entry":388,"eventemitter3":16}],390:[function(require,module,exports){
+},{"./entry":408,"eventemitter3":8}],410:[function(require,module,exports){
+module.exports = {
+    Pixel: require('./pixel'),
+    PixelSheet: require('./pixel-sheet'),
+    Scene: require('./scene'),
+    PixelArt: require('./pixelart')
+}
+},{"./pixel":412,"./pixel-sheet":411,"./pixelart":413,"./scene":414}],411:[function(require,module,exports){
+const Pixel = require('./pixel')
+
+/**
+ * sheet of pixels
+ * @param {object[]} map
+ * @param {string} map.name
+ * @param {number} map.x
+ * @param {number} map.y
+ * @param {number} map.width
+ * @param {number} map.height
+ * @param {array} data - original data set to pull pixel from
+ * @param {RenderSheet} sheet
+ */
+module.exports = function PixelSheet(map, data, sheet)
+{
+    for (let pixel of map)
+    {
+        pixel.frames = []
+        pixel.frames[0] = { width: pixel.width, height: pixel.height, data: [] }
+        for (let y = 0; y < pixel.height; y++)
+        {
+            for (let x = 0; x < pixel.width; x++)
+            {
+                pixel.frames[0].data[x + y * pixel.width] = data.frames[0].data[x + pixel.x + (y + pixel.y) * data.frames[0].width]
+            }
+        }
+        Pixel.add(pixel, sheet)
+    }
+}
+},{"./pixel":412}],412:[function(require,module,exports){
+const PIXI = require('pixi.js')
+const Ease = require('pixi-ease')
+const Random = require('yy-random')
+
+/**
+ * @param {object} data imported from .json (from Pixel-Editor)
+ * @param {RenderSheet} sheet - rendersheet for rendering pixel sprite
+ * @event stop  - animation finishes and stops
+ * @event loop - animation loops
+ * @event link - animation link to another animation
+ * @event frame - animation changes frame
+ */
+
+module.exports = class Pixel extends PIXI.Sprite
+{
+    /**
+     * create a sprite with the Pixel-Editor data
+     * @param {object} data
+     * @param {RenderSheet} sheet
+     */
+    constructor(data, sheet)
+    {
+        super()
+        if (data)
+        {
+            this.name = data.name
+            this.frames = data.frames
+            this.animations = data.animations
+            this.sheet = sheet
+            this.render()
+        }
+    }
+
+    /**
+     * @param {number} index of frame
+     * @return {object} returns {width: n, height: m }
+     */
+    size(index)
+    {
+        index = index || 0
+        return { width: this.frames[index].width, height: this.frames[index].height }
+    }
+
+    /**
+     * adds the frames to the RenderSheet
+     * @param {boolean} force
+     */
+    render(force)
+    {
+        if (force || !this.sheet.exists(this.name + '-0'))
+        {
+            for (let i = 0; i < this.frames.length; i++)
+            {
+                this.sheet.add(this.name + '-' + i, draw, measure, this.frames[i])
+            }
+        }
+    }
+
+    /**
+     * adds the frames to the RenderSheet
+     * @param {object} data from Pixel-Editor
+     * @param {RenderSheet} sheet
+     */
+    static add(data, sheet)
+    {
+        for (let i = 0; i < data.frames.length; i++)
+        {
+            sheet.add(data.name + '-' + i, draw, measure, data.frames[i])
+        }
+    }
+
+    /**
+     * move sprite to a different location
+     * @param {number} x
+     * @param {number} y
+     * @param {number} duration
+     * @param {object} [options]
+     * @param {string|function} [options.ease]
+     * @param {number} options.duration
+     * @param {number} options.speed (n / millisecond)
+     */
+    move(x, y, options)
+    {
+        if (options.duration)
+        {
+            this.moving = new Ease.to(this, { x, y }, options.duration, { ease: options.ease })
+        }
+        else if (options.speed)
+        {
+            this.moving = new Ease.target(this, {x, y}, options.speed)
+        }
+    }
+
+    /**
+     * starts a named animation
+     * @param {string} name of animation
+     * @param {boolean} reverse - flip the sprite
+     */
+    animate(name, reverse)
+    {
+        this.scale.x = Math.abs(this.scale.x) * (reverse ? -1 : 1)
+        this.animation = this.animations[name]
+        if (this.animation)
+        {
+            this.index = 0
+            this.updateFrame(0)
+            this.stop = false
+        }
+        else
+        {
+            this.stop = true
+        }
+    }
+
+    /**
+     * updates a frame
+     * @private
+     * @param {number} leftover
+     */
+    updateFrame(leftover)
+    {
+        let entry = this.animation[this.index]
+        if (typeof entry[0] === 'string')
+        {
+            switch (entry[0])
+            {
+                case 'loop':
+                    this.index = 0
+                    entry = this.animation[0]
+                    this.updateFrame(leftover)
+                    this.emit('loop, this')
+                    return
+
+                case 'unique':
+                    let pick
+                    do
+                    {
+                        pick = Random.pick(entry[1])
+                    }
+                    while (this.last === pick)
+                    this.last = pick
+                    entry = [pick, entry[2]]
+                    break
+
+                case 'link':
+                    this.animation = this.animations[entry[1]]
+                    this.index = 0
+                    this.updateFrame(leftover)
+                    this.emit('link', this)
+                    return
+            }
+        }
+        if (Array.isArray(entry[1]))
+        {
+            this.next = Random.range(entry[1][0], entry[1][1]) + leftover
+        }
+        else
+        {
+            this.next = entry[1] + leftover
+        }
+        this.texture = this.sheet.getTexture(this.name + '-' + entry[0])
+        this.emit('frame', this)
+    }
+
+    /**
+     * updates the pixel
+     * @param {number} elapsed
+     * @return {boolean} whether the sprite changed
+     */
+    update(elapsed)
+    {
+        if (!this.stop)
+        {
+            this.next -= elapsed
+            if (this.next <= 0)
+            {
+                this.index++
+                if (this.index === this.animation.length)
+                {
+                    this.stop = true
+                    this.emit('stop', this)
+                }
+                else
+                {
+                    this.updateFrame(this.next)
+                    return true
+                }
+            }
+        }
+        if (this.moving && this.moving.update(elapsed))
+        {
+            this.moving = null
+        }
+    }
+
+    /**
+     * change the sprite to a certain frame
+     * @param {number} index of frame
+     */
+    frame(index)
+    {
+        this.texture = this.sheet.getTexture(this.name + '-' + index)
+    }
+}
+
+/**
+ * used by RenderSheet to render the frame
+ * @private
+ * @param {CanvasRenderingContext2D} c
+ * @param {object} frame
+ */
+function draw(c, frame)
+{
+    const pixels = frame.data
+    for (let y = 0; y < frame.height; y++)
+    {
+        for (let x = 0; x < frame.width; x++)
+        {
+            const color = pixels[x + y * frame.width]
+            if (color !== null)
+            {
+                let hex = color.toString(16)
+                while (hex.length < 6)
+                {
+                    hex = '0' + hex
+                }
+                c.fillStyle = '#' + hex
+                c.beginPath()
+                c.fillRect(x, y, 1, 1)
+            }
+        }
+    }
+}
+
+/**
+ * used by RenderSheet to render the frame
+ * @param {CanvasRenderingContext2D} c
+ * @param {object} params
+ */
+function measure(c, params)
+{
+    return { width: params.width, height: params.height }
+}
+},{"pixi-ease":194,"pixi.js":351,"yy-random":415}],413:[function(require,module,exports){
+// Note: these algorithms are WOEFULLY inefficient. They are designed for low-resolution pixel drawings that are rendered to a spritesheet.
+// Please do NOT use these where you want to render shapes during each frame
+
+const Color = require('yy-color')
+
+let _c, _scale = 1
+
+function put(x, y)
+{
+    _c.beginPath()
+    _c.fillRect(Math.round(x), Math.round(y), 1, 1)
+}
+
+function box(x1, y1, w, h)
+{
+    _c.beginPath()
+    _c.fillRect(Math.round(x1), Math.round(y1), Math.round(w), Math.round(h))
+}
+
+function mod(n, m)
+{
+    return ((n % m) + m) % m
+}
+
+const PixelArt = {
+
+    get scale()
+    {
+        return _scale
+    },
+
+    set scale(value)
+    {
+        _scale = value
+    },
+
+    put: function (x, y, color, c)
+    {
+        _c = c || _c
+        if (color)
+        {
+            _c.fillStyle = color
+        }
+        put(x * _scale, y * _scale)
+    },
+
+    points: function (points, color, c)
+    {
+        _c = c || _c
+        if (color)
+        {
+            _c.fillStyle = color
+        }
+        for (let i = 0; i < points.length; i += 2)
+        {
+            put(points[i] * _scale, points[i + 1] * _scale)
+        }
+    },
+
+    /**
+     * draw and fill rectangle
+     * @param {number} x1 - x-center
+     * @param {number} y2 - y-center
+     * @param {number} radius - radius
+     * @param {string} color
+     * @param {CanvasRenderingContext2D} [c]
+     */
+    rectFill: function (x1, y1, w, h, color, c)
+    {
+        _c = c || _c
+        if (color)
+        {
+            _c.fillStyle = color
+        }
+        box(x1 * _scale, y1 * _scale, w * _scale, h * _scale)
+    },
+
+    /**
+     * draw circle
+     * from https://en.wikipedia.org/wiki/Midpoint_circle_algorithm
+     * @param {number} x0 - x-center
+     * @param {number} y0 - y-center
+     * @param {number} radius - radius
+     * @param {string} color
+     * @param {CanvasRenderingContext2D} [c]
+     */
+    circle: function (x0, y0, radius, color, c)
+    {
+        _c = c || _c
+        if (color)
+        {
+            _c.fillStyle = color
+        }
+        x0 *= _scale
+        y0 *= _scale
+        radius *= _scale
+        let x = radius
+        let y = 0
+        let decisionOver2 = 1 - x   // Decision criterion divided by 2 evaluated at x=r, y=0
+
+        while (x >= y)
+        {
+            put(x + x0, y + y0)
+            put(y + x0, x + y0)
+            put(-x + x0, y + y0)
+            put(-y + x0, x + y0)
+            put(-x + x0, -y + y0)
+            put(-y + x0, -x + y0)
+            put(x + x0, -y + y0)
+            put(y + x0, -x + y0)
+            y++
+            if (decisionOver2 <= 0)
+            {
+                decisionOver2 += 2 * y + 1 // Change in decision criterion for y -> y+1
+            } else
+            {
+                x--
+                decisionOver2 += 2 * (y - x) + 1 // Change for y -> y+1, x -> x-1
+            }
+        }
+    },
+
+    /**
+     * draw arc
+     * @param {number} x0 - x-start
+     * @param {number} y0 - y-start
+     * @param {number} radius - radius
+     * @param {number} start angle (radians)
+     * @param {number} end angle (radians)
+     * @param {string} color
+     * @param {CanvasRenderingContext2D} [c]
+     */
+    arc: function (x0, y0, radius, start, end, color, c)
+    {
+        _c = c || _c
+        if (color)
+        {
+            _c.fillStyle = color
+        }
+        x0 *= _scale
+        y0 *= _scale
+        radius *= _scale
+        const interval = Math.PI / radius / 4
+        for (let i = start; i <= end; i += interval)
+        {
+            put(x0 + Math.cos(i) * radius, y0 + Math.sin(i) * radius)
+        }
+    },
+
+    /**
+     * draw and fill circle
+     * @param {number} x0 - x-center
+     * @param {number} y0 - y-center
+     * @param {number} radius - radius
+     * @param {string} color
+     * @param {CanvasRenderingContext2D} [c]
+     */
+    circleFill: function (x0, y0, radius, color, c)
+    {
+        _c = c || _c
+        if (color)
+        {
+            _c.fillStyle = color
+        }
+        x0 *= _scale
+        y0 *= _scale
+        radius *= _scale
+        let x = radius
+        let y = 0
+        let decisionOver2 = 1 - x   // Decision criterion divided by 2 evaluated at x=r, y=0
+
+        while (x >= y)
+        {
+            box(-x + x0, y + y0, x * 2, 1)
+            box(-y + x0, x + y0, y * 2, 1)
+            box(-x + x0, -y + y0, x * 2, 1)
+            box(-y + x0, -x + y0, y * 2, 1)
+            y++
+            if (decisionOver2 <= 0)
+            {
+                decisionOver2 += 2 * y + 1 // Change in decision criterion for y -> y+1
+            } else
+            {
+                x--
+                decisionOver2 += 2 * (y - x) + 1 // Change for y -> y+1, x -> x-1
+            }
+        }
+    },
+
+    /**
+     * draw ellipse
+     * from http://cfetch.blogspot.tw/2014/01/wap-to-draw-ellipse-using-midpoint.html
+     * @param {number} xc - x-center
+     * @param {number} yc - y-center
+     * @param {*} rx - radius x-axis
+     * @param {*} ry - radius y-axis
+     * @param {string} color
+     * @param {CanvasRenderingContext2D} [c]
+     */
+    ellipse(xc, yc, rx, ry, color, c)
+    {
+        _c = c || _c
+        if (color)
+        {
+            _c.fillStyle = color
+        }
+        xc *= _scale
+        yc *= _scale
+        rx *= _scale
+        ry *= _scale
+        let x = 0, y = ry
+        let p = (ry * ry) - (rx * rx * ry) + ((rx * rx) / 4)
+        while ((2 * x * ry * ry) < (2 * y * rx * rx))
+        {
+            put(xc + x, yc - y)
+            put(xc - x, yc + y)
+            put(xc + x, yc + y)
+            put(xc - x, yc - y)
+
+            if (p < 0)
+            {
+                x = x + 1
+                p = p + (2 * ry * ry * x) + (ry * ry)
+            }
+            else
+            {
+                x = x + 1
+                y = y - 1
+                p = p + (2 * ry * ry * x + ry * ry) - (2 * rx * rx * y)
+            }
+        }
+        p = (x + 0.5) * (x + 0.5) * ry * ry + (y - 1) * (y - 1) * rx * rx - rx * rx * ry * ry
+        while (y >= 0)
+        {
+            put(xc + x, yc - y)
+            put(xc - x, yc + y)
+            put(xc + x, yc + y)
+            put(xc - x, yc - y)
+            if (p > 0)
+            {
+                y = y - 1
+                p = p - (2 * rx * rx * y) + (rx * rx)
+            }
+            else
+            {
+                y = y - 1
+                x = x + 1
+                p = p + (2 * ry * ry * x) - (2 * rx * rx * y) - (rx * rx)
+            }
+        }
+    },
+
+    /**
+     * draw and fill ellipse
+     * @param {number} xc - x-center
+     * @param {number} yc - y-center
+     * @param {number} rx - radius x-axis
+     * @param {number} ry - radius y-axis
+     * @param {string} color
+     * @param {CanvasRenderingContext2D} [c]
+     */
+    ellipseFill(xc, yc, rx, ry, color, c)
+    {
+        _c = c || _c
+        if (color)
+        {
+            _c.fillStyle = color
+        }
+        xc *= _scale
+        yc *= _scale
+        rx *= _scale
+        ry *= _scale
+        let x = 0, y = ry
+        let p = (ry * ry) - (rx * rx * ry) + ((rx * rx) / 4)
+        while ((2 * x * ry * ry) < (2 * y * rx * rx))
+        {
+            box(xc - x, yc - y, x * 2, 1)
+            box(xc - x, yc + y, x * 2, 1)
+            if (p < 0)
+            {
+                x = x + 1
+                p = p + (2 * ry * ry * x) + (ry * ry)
+            }
+            else
+            {
+                x = x + 1
+                y = y - 1
+                p = p + (2 * ry * ry * x + ry * ry) - (2 * rx * rx * y)
+            }
+        }
+        p = (x + 0.5) * (x + 0.5) * ry * ry + (y - 1) * (y - 1) * rx * rx - rx * rx * ry * ry
+        while (y >= 0)
+        {
+            box(xc - x, yc - y, x * 2, 1)
+            box(xc - x, yc + y, x * 2, 1)
+            if (p > 0)
+            {
+                y = y - 1
+                p = p - (2 * rx * rx * y) + (rx * rx)
+            }
+            else
+            {
+                y = y - 1
+                x = x + 1
+                p = p + (2 * ry * ry * x) - (2 * rx * rx * y) - (rx * rx)
+            }
+        }
+    },
+
+    /**
+     * draw and fill polygon
+     * @param {number[]} vertices
+     * @param {string} color
+     * @param {CanvasRenderingContext2D} [c]
+     */
+    polygonFill: function (vertices, color, c)
+    {
+        _c = c || _c
+        if (color)
+        {
+            _c.fillStyle = color
+        }
+        const edges = [], active = []
+        let minY = Infinity, maxY = 0
+
+        // create edges
+        for (let i = 0; i < vertices.length; i += 2)
+        {
+            const p1 = { x: vertices[i] * _scale, y: vertices[i + 1] * _scale }
+            const p2 = { x: vertices[mod(i + 2, vertices.length)] * _scale, y: vertices[mod(i + 3, vertices.length)] * _scale }
+            if (p1.y - p2.y !== 0)
+            {
+                const edge = {}
+                edge.p1 = p1
+                edge.p2 = p2
+                if (p1.y < p2.y)
+                {
+                    edge.minY = p1.y
+                    edge.minX = p1.x
+                }
+                else
+                {
+                    edge.minY = p2.y
+                    edge.minX = p2.x
+                }
+                minY = (edge.minY < minY) ? edge.minY : minY
+                edge.maxY = Math.max(p1.y, p2.y)
+                maxY = (edge.maxY > maxY) ? edge.maxY : maxY
+                if (p1.x - p2.x === 0)
+                {
+                    edge.slope = Infinity
+                    edge.b = p1.x
+                }
+                else
+                {
+                    edge.slope = (p1.y - p2.y) / (p1.x - p2.x)
+                    edge.b = p1.y - edge.slope * p1.x
+                }
+                edges.push(edge)
+            }
+        }
+        edges.sort((a, b) => { return a.minY - b.minY })
+        for (let y = minY; y <= maxY; y++)
+        {
+            for (let i = 0; i < edges.length; i++)
+            {
+                const edge = edges[i]
+                if (edge.minY === y)
+                {
+                    active.push(edge)
+                    edges.splice(i, 1)
+                    i--
+                }
+            }
+            for (let i = 0; i < active.length; i++)
+            {
+                const edge = active[i]
+                if (edge.maxY < y)
+                {
+                    active.splice(i, 1)
+                    i--
+                }
+                else
+                {
+                    if (edge.slope !== Infinity)
+                    {
+                        edge.x = Math.round((y - edge.b) / edge.slope)
+                    }
+                    else
+                    {
+                        edge.x = edge.b
+                    }
+                }
+            }
+            active.sort((a, b) => { return a.x - b.x === 0 ? b.maxY - a.maxY : a.x - b.x })
+            let bit = true, current = 1
+            for (let x = active[0].x; x <= active[active.length - 1].x; x++)
+            {
+                if (bit)
+                {
+                    put(x, y)
+                }
+                if (active[current].x === x)
+                {
+                    if (active[current].maxY !== y)
+                    {
+                        bit = !bit
+                    }
+                    current++
+                }
+            }
+        }
+    },
+
+    /**
+     * gets data for use with yy-pixel.Pixel file format
+     * @param {number} x0 - starting point in canvas
+     * @param {number} y0
+     * @param {number} width
+     * @param {number} height
+     * @param {HTMLContext} c
+     */
+    getPixels: function (x0, y0, width, height, c)
+    {
+        _c = c || _c
+        const data = _c.getImageData(x0, y0, width, height)
+        const bits =  data.data
+
+        const pixels = []
+        for (let y = 0; y < height; y += _scale)
+        {
+            for (let x = 0; x < width; x += _scale)
+            {
+                const index = x * 4 + y * width * 4
+                if (bits[index + 3] === 0)
+                {
+                    pixels.push(null)
+                }
+                else
+                {
+                    const color = Color.rgbToHex(bits[index], bits[index + 1], bits[index + 2])
+                    pixels.push(parseInt(color, 16))
+                }
+            }
+        }
+        return pixels
+    }
+}
+
+module.exports = PixelArt
+},{"yy-color":403}],414:[function(require,module,exports){
+const PIXI = require('pixi.js')
+const Pixel = require('./pixel')
+
+module.exports = class Scene extends PIXI.Container
+{
+    constructor(data, sprites, sheet)
+    {
+        super()
+        this.time = 0
+        this.index = 0
+        if (data)
+        {
+            this.timeline = data.timeline
+            this.options = data.options || {}
+            this.pixels = data.pixels
+            this.spritesData = sprites
+            this.w = data.width
+            this.h = data.height
+            this.sheet = sheet
+            this.populate()
+        }
+    }
+
+    rendersheet(sheet)
+    {
+        sheet = sheet || this.sheet
+        for (let sprite of this.sprites)
+        {
+            sprite.render(sheet)
+        }
+    }
+
+    populate()
+    {
+        this.removeChildren()
+        if (this.options.sortY)
+        {
+            this.nosort = this.addChild(new PIXI.Container())
+            this.sorted = this.addChild(new PIXI.Container())
+        }
+        this.sprites = []
+        for (let name of this.pixels)
+        {
+            let data
+            if (this.spritesData)
+            {
+                data = this.spritesData[name]
+            }
+            else
+            {
+                data = require(name)
+            }
+            let sprite
+            if (this.options.sortY)
+            {
+                if (this.options.noSort && this.options.noSort.indexOf(data.name) !== -1)
+                {
+                    sprite = this.nosort.addChild(new Pixel(data, this.sheet))
+                }
+                else
+                {
+                    sprite = this.sorted.addChild(new Pixel(data, this.sheet))
+                }
+            }
+            else
+            {
+                sprite = this.addChild(new Pixel(data, this.sheet))
+            }
+            sprite.file = name
+            sprite.anchor.set(0.5)
+            sprite.placed = false
+            sprite.visible = false
+            this.sprites.push(sprite)
+        }
+    }
+
+    get(name)
+    {
+        for (let sprite of this.sprites)
+        {
+            if (sprite.name === name)
+            {
+                return sprite
+            }
+        }
+    }
+
+    update(elapsed)
+    {
+        this.time += elapsed
+        if (this.index !== this.timeline.length)
+        {
+            for (let index = this.index; index < this.timeline.length; index++)
+            {
+                const timeline = this.timeline[index]
+                if (timeline.time <= this.time)
+                {
+                    const sprite = this.get(timeline['sprite'])
+                    switch (timeline['type'])
+                    {
+                        case 'place':
+                            sprite.visible = true
+                            sprite.placed = true
+                            sprite.position.set(timeline.x, timeline.y)
+                            sprite.frame(0)
+                            this.emit('callback', timeline)
+                            break
+
+                        case 'unplace':
+                            sprite.visible = false
+                            sprite.placed = false
+                            this.emit('callback', timeline)
+                            break
+
+                        case 'frame':
+                            sprite.frame(timeline.frame)
+                            sprite.stop = true
+                            sprite.scale.x = Math.abs(sprite.scale.x) * (timeline.flip ? -1 : 1)
+                            this.emit('callback', timeline)
+                            break
+
+                        case 'animate':
+                            sprite.animate(timeline.animate)
+                            sprite.scale.x = Math.abs(sprite.scale.x) * (timeline.flip ? -1 : 1)
+                            this.emit('callback', timeline)
+                            break
+
+                        case 'move':
+                            sprite.move(timeline.x, timeline.y, { duration: timeline.duration, ease: timeline.ease })
+                            this.emit('callback', timeline)
+                            break
+
+                        case 'event':
+                            this.emit('callback', timeline)
+                            break
+                    }
+                    this.index = index + 1
+                }
+                else
+                {
+                    break
+                }
+            }
+        }
+        for (let sprite of this.sprites)
+        {
+            sprite.update(elapsed)
+        }
+        if (this.options.sortY)
+        {
+            this.sorted.children.sort((a, b) => { return a.y - b.y })
+        }
+        if (this.index === this.timeline.length)
+        {
+            return true
+        }
+    }
+}
+},{"./pixel":412,"pixi.js":351}],415:[function(require,module,exports){
 // yy-random
 // by David Figatner
 // MIT license
@@ -61280,7 +64805,7 @@ class Random
 }
 
 module.exports = new Random()
-},{"seedrandom":375}],391:[function(require,module,exports){
+},{"seedrandom":393}],416:[function(require,module,exports){
 // yy-renderer
 // by David Figatner
 // (c) YOPEY YOPEY LLC 2017
@@ -61375,8 +64900,8 @@ class Renderer extends Loop
     createCanvas(options)
     {
         this.canvas = document.createElement('canvas')
-        this.canvas.style.width = '100%'
-        this.canvas.style.height = '100%'
+        this.canvas.style.width = '100vw'
+        this.canvas.style.height = '100vh'
         if (options.parent)
         {
             options.parent.appendChild(this.canvas)
@@ -61684,7 +65209,678 @@ class Renderer extends Loop
 }
 
 module.exports = Renderer
-},{"exists":17,"pixi.js":333,"yy-fps":385,"yy-loop":387}],392:[function(require,module,exports){
+},{"exists":9,"pixi.js":351,"yy-fps":405,"yy-loop":407}],417:[function(require,module,exports){
+/**
+ * @file growingpacker.js
+ * @author David Figatner
+ * @license MIT
+ * @copyright YOPEY YOPEY LLC 2016
+ * {@link https://github.com/davidfig/rendersheet}
+ *
+ * based on
+ * packer.growing.js {@link https://github.com/jakesgordon/bin-packing/}
+ * by Jake Gordon
+ * MIT license
+ * Copyright (c) 2011-2016 Jake Gordon and contributors
+ */
+
+class GrowingPacker
+{
+    constructor(max, first, buffer)
+    {
+        this.max = max
+        this.buffer = buffer
+        this.root = { x: 0, y: 0, w: first.width + buffer, h: first.height + buffer }
+    }
+
+    finish(maxSize)
+    {
+        let n = 1, next
+        const squared = []
+        do
+        {
+            next = Math.pow(2, n++)
+            squared.push(next)
+        } while (next <= maxSize)
+
+        const max = Math.max(this.root.w, this.root.h)
+
+        for (let i = squared.length - 1; i >= 0; i--)
+        {
+            if (squared[i] < max)
+            {
+                return squared[i + 1]
+            }
+        }
+    }
+
+    add(block, canvasNumber)
+    {
+        let result, node
+        if (node = this.findNode(this.root, block.width + this.buffer, block.height + this.buffer))
+        {
+            result = this.splitNode(node, block.width + this.buffer, block.height + this.buffer)
+        }
+        else
+        {
+            result = this.growNode(block.width + this.buffer, block.height + this.buffer)
+            if (!result)
+            {
+                return false
+            }
+        }
+        block.x = result.x
+        block.y = result.y
+        block.canvas = canvasNumber
+        return true
+    }
+
+    findNode(root, w, h)
+    {
+        if (root.used)
+        {
+            return this.findNode(root.right, w, h) || this.findNode(root.down, w, h)
+        }
+        else if ((w <= root.w) && (h <= root.h))
+        {
+            return root
+        }
+        else
+        {
+            return null
+        }
+    }
+
+    splitNode(node, w, h)
+    {
+        node.used = true
+        node.down  = { x: node.x,     y: node.y + h, w: node.w,     h: node.h - h }
+        node.right = { x: node.x + w, y: node.y,     w: node.w - w, h: h          }
+        return node
+    }
+
+    growNode(w, h)
+    {
+        const canGrowDown  = (w <= this.root.w)
+        const canGrowRight = (h <= this.root.h)
+
+        const shouldGrowRight = canGrowRight && (this.root.h >= (this.root.w + w)) // attempt to keep square-ish by growing right when height is much greater than width
+        const shouldGrowDown  = canGrowDown  && (this.root.w >= (this.root.h + h)) // attempt to keep square-ish by growing down  when width  is much greater than height
+
+        if (shouldGrowRight)
+        {
+            return this.growRight(w, h)
+        }
+        else if (shouldGrowDown)
+        {
+            return this.growDown(w, h)
+        }
+        else if (canGrowRight)
+        {
+            return this.growRight(w, h)
+        }
+        else if (canGrowDown)
+        {
+            return this.growDown(w, h)
+        }
+        else
+        {
+            return null
+        }
+    }
+
+    growRight(w, h)
+    {
+        if (this.root.w + w >= this.max)
+        {
+            return null
+        }
+        this.root = {
+            used: true,
+            x: 0,
+            y: 0,
+            w: this.root.w + w,
+            h: this.root.h,
+            down: this.root,
+            right: { x: this.root.w, y: 0, w: w, h: this.root.h }
+        }
+        let node
+        if (node = this.findNode(this.root, w, h))
+        {
+            return this.splitNode(node, w, h)
+        }
+        else
+        {
+            return null
+        }
+    }
+
+    growDown(w, h)
+    {
+        if (this.root.h + h >= this.max)
+        {
+            return null
+        }
+        this.root = {
+            used: true,
+            x: 0,
+            y: 0,
+            w: this.root.w,
+            h: this.root.h + h,
+            down:  { x: 0, y: this.root.h, w: this.root.w, h: h },
+            right: this.root
+        }
+        let node
+        if (node = this.findNode(this.root, w, h))
+        {
+            return this.splitNode(node, w, h)
+        }
+        else
+        {
+            return null
+        }
+    }
+}
+
+module.exports = GrowingPacker
+},{}],418:[function(require,module,exports){
+// yy-rendersheet
+// by David Figatner
+// (c) YOPEY YOPEY LLC 2017
+// MIT License
+// https://github.com/davidfig/rendersheet
+
+const PIXI = require('pixi.js')
+const GrowingPacker = require('./growingpacker.js')
+
+// types
+const CANVAS = 0 // default
+const IMAGE = 1
+
+// default ms to wait to reload an image to load
+const WAIT = 250
+
+class RenderSheet
+{
+    /**
+     * @param {object} options
+     * @param {number} [options.maxSize=2048]
+     * @param {number} [options.buffer=5] around each texture
+     * @param {number} [options.scale=1] of texture
+     * @param {number} [options.resolution=1] of rendersheet
+     * @param {number} [options.wait=250] number of milliseconds to wait between checks for onload of addImage images before rendering
+     * @param {Function} [options.debug] the Debug module from yy-debug (@see {@link github.com/davidfig/debug})
+     * @param {boolean} [options.testBoxes] draw a different colored boxes around each rendering
+     * @param {number} [options.scaleMode] PIXI.settings.SCALE_MODE to set for rendersheet
+     * @param {boolean|object} [options.show] set to true or a CSS object (e.g., {zIndex: 10, background: 'blue'}) to attach the final canvas to document.body--useful for debugging
+     */
+    constructor(options)
+    {
+        options = options || {}
+        this.wait = options.wait || WAIT
+        this.testBoxes = options.testBoxes || false
+        this.maxSize = options.maxSize || 2048
+        this.buffer = options.buffer || 5
+        this.scale = options.scale || 1
+        this.scaleMode = options.scaleMode
+        this.resolution = options.resolution || 1
+        this.show = options.show
+        this.canvases = []
+        this.baseTextures = []
+        this.textures = {}
+    }
+
+    /**
+     * adds a canvas rendering
+     * @param {string} name of rendering
+     * @param {Function} draw function(context) - use the context to draw within the bounds of the measure function
+     * @param {Function} measure function(context) - needs to return {width: width, height: height} for the rendering
+     * @param {object} params - object to pass the draw() and measure() functions
+     */
+    add(name, draw, measure, param)
+    {
+        const object = this.textures[name] = { name: name, draw: draw, measure: measure, param: param, type: CANVAS, texture: new PIXI.Texture(PIXI.Texture.EMPTY) }
+        return object
+    }
+
+    /**
+     * adds an image rendering
+     * @param {string} name of rendering
+     * @param {Function} draw function(context) - use the context to draw within the bounds of the measure function
+     * @param {Function} measure function(context) - needs to return {width: width, height: height} for the rendering
+     * @param {object} params - object to pass the draw() and measure() functions
+     */
+    addImage(name, file)
+    {
+        const object = this.textures[name] = { name: name, file: file, type: IMAGE, texture: new PIXI.Texture(PIXI.Texture.EMPTY)  }
+        object.image = new Image()
+        object.image.onload =
+            function()
+            {
+                object.loaded = true
+            }
+        object.image.src = file
+        return object
+    }
+
+    /**
+     * attaches RenderSheet to DOM for testing
+     * @param {object} styles - CSS styles to use for rendersheet
+     * @private
+     */
+    showCanvases()
+    {
+        if (!this.divCanvases)
+        {
+            this.divCanvases = document.createElement('div')
+            document.body.appendChild(this.divCanvases)
+        }
+        else
+        {
+            while (this.divCanvases.hasChildNodes())
+            {
+                this.divCanvases.removeChild(this.divCanvases.lastChild)
+            }
+        }
+        const percent = 1 / this.canvases.length
+        for (let i = 0; i < this.canvases.length; i++)
+        {
+            const canvas = this.canvases[i]
+            const style = canvas.style
+            style.position = 'fixed'
+            style.left = '0px'
+            style.top = i * Math.round(percent * 100) + '%'
+            style.width = 'auto'
+            style.height = Math.round(percent * 100) + '%'
+            style.zIndex = 1000
+            if (this.scaleMode === PIXI.SCALE_MODES.NEAREST)
+            {
+                style.imageRendering = 'pixelated'
+            }
+            style.background = this.randomColor()
+            if (typeof this.show === 'object')
+            {
+                for (let key in this.show)
+                {
+                    style[key] = this.show[key]
+                }
+            }
+            this.divCanvases.appendChild(canvas)
+        }
+    }
+
+    /**
+     * tests whether a texture exists
+     * @param {string} name of texture
+     * @return {boolean}
+     */
+    exists(name)
+    {
+        return this.textures[name] ? true : false
+    }
+
+    /**
+     * @param {string} name of texture
+     * @return {(PIXI.Texture|null)}
+     */
+    getTexture(name)
+    {
+        const texture = this.textures[name]
+        if (texture)
+        {
+            return texture.texture
+        }
+        else
+        {
+            console.warn('yy-rendersheet: texture ' + name + ' not found in spritesheet.')
+            return null
+        }
+    }
+
+    /**
+     * returns a PIXI.Sprite (with anchor set to 0.5, because that's where it should be)
+     * @param {string} name of texture
+     * @return {PIXI.Sprite}
+     */
+    getSprite(name)
+    {
+        const texture = this.getTexture(name)
+        if (texture)
+        {
+            const sprite = new PIXI.Sprite(texture)
+            sprite.anchor.set(0.5)
+            return sprite
+        }
+        else
+        {
+            return null
+        }
+    }
+
+    /**
+     * alias for getSprite()
+     * @param {string} name of texture
+     * @return {PIXI.Sprite)}
+     */
+    get(name)
+    {
+        return this.getSprite(name)
+    }
+
+    /**
+     * @return {number} amount of textures in this rendersheet
+     */
+    entries()
+    {
+        return Object.keys(this.textures).length
+    }
+
+    /**
+     * prints statistics of canvases to console.log
+     */
+    debug()
+    {
+        for (let i = 0; i < this.canvases.length; i++)
+        {
+            const canvas = this.canvases[i]
+            console.log('yy-rendersheet: Sheet #' + (i + 1) + ' | size: ' + canvas.width + 'x' + canvas.height + ' | resolution: ' + this.resolution)
+        }
+    }
+
+    /**
+     * find the index of the texture based on the texture object
+     * @param {number} find this indexed texture
+     * @returns {PIXI.Texture}
+     */
+    getIndex(find)
+    {
+        let i = 0
+        for (let key in this.textures)
+        {
+            if (i === find)
+            {
+                return this.textures[key].texture
+            }
+            i++
+        }
+        return null
+    }
+
+    /**
+     * checks if all textures are loaded
+     * @return {boolean}
+     */
+    checkLoaded()
+    {
+        for (let key in this.textures)
+        {
+            const current = this.textures[key]
+            if (current.type === IMAGE && !current.loaded)
+            {
+                return false
+            }
+        }
+        return true
+    }
+
+    /**
+     * create (or refresh) the rendersheet
+     * @param {function} [callback] function - useful for addImage to ensure image is loaded before rendering starts
+     */
+    render(callback)
+    {
+        if (!Object.keys(this.textures).length)
+        {
+            if (callback) callback()
+            return
+        }
+        if (callback)
+        {
+            this.callback = callback
+        }
+        if (!this.checkLoaded())
+        {
+            window.setTimeout(this.render.bind(this), WAIT)
+            return
+        }
+        this.canvases = []
+        this.sorted = []
+
+        this.measure()
+        this.sort()
+        this.pack()
+        this.draw()
+        this.createBaseTextures()
+
+        for (let key in this.textures)
+        {
+            const current = this.textures[key]
+            current.texture.baseTexture = this.baseTextures[current.canvas]
+            current.texture.frame = new PIXI.Rectangle(current.x, current.y, current.width, current.height)
+            current.texture.update()
+        }
+        callback = callback || this.callback
+        if (callback)
+        {
+            callback()
+        }
+        if (this.show)
+        {
+            this.showCanvases()
+        }
+    }
+
+    /**
+     * measures canvas renderings
+     * @private
+     */
+    measure()
+    {
+        const c = document.createElement('canvas')
+        c.width = this.maxSize
+        c.height = this.maxSize
+        const context = c.getContext('2d')
+        const multiplier = this.scale * this.resolution
+        for (let key in this.textures)
+        {
+            const texture = this.textures[key]
+            switch (texture.type)
+            {
+                case CANVAS:
+                    const size = texture.measure(context, texture.param)
+                    texture.width = Math.ceil(size.width * multiplier)
+                    texture.height = Math.ceil(size.height * multiplier)
+                    break
+
+                case IMAGE:
+                    texture.width = texture.image.width * multiplier
+                    texture.height = texture.image.height * multiplier
+                    break
+            }
+            this.sorted.push(texture)
+        }
+    }
+
+    /**
+     * sort textures by largest dimension
+     * @private
+     */
+    sort()
+    {
+        this.sorted.sort(
+            function(a, b)
+            {
+                let aSize = Math.max(a.height, a.width)
+                let bSize = Math.max(b.height, b.width)
+                if (aSize === bSize)
+                {
+                    aSize = Math.min(a.height, a.width)
+                    bSize = Math.max(b.height, b.width)
+                }
+                return bSize - aSize
+            }
+        )
+    }
+
+    /**
+     * create square canvas
+     * @param {number} [size=this.maxSize]
+     * @private
+     */
+    createCanvas(size)
+    {
+        const canvas = document.createElement('canvas')
+        canvas.width = canvas.height = size || this.maxSize
+        this.canvases.push(canvas)
+    }
+
+    /**
+     * returns a random rgb color
+     * @private
+     */
+    randomColor()
+    {
+        function r()
+        {
+            return Math.floor(Math.random() * 255)
+        }
+        return 'rgba(' + r() + ',' + r() + ',' + r() + ', 0.2)'
+    }
+
+    /**
+     * draw renderings to rendertexture
+     * @private
+     */
+    draw()
+    {
+        let current, context
+        const multiplier = this.scale * this.resolution
+        for (let key in this.textures)
+        {
+            const texture = this.textures[key]
+            if (texture.canvas !== current)
+            {
+                if (typeof current !== 'undefined')
+                {
+                    context.restore()
+                }
+                current = texture.canvas
+                context = this.canvases[current].getContext('2d')
+                context.save()
+                context.scale(multiplier, multiplier)
+            }
+            context.save()
+            context.translate(texture.x / multiplier, texture.y / multiplier)
+            if (this.testBoxes)
+            {
+                context.fillStyle = this.randomColor()
+                context.fillRect(0, 0, texture.width / multiplier, texture.height / multiplier)
+            }
+            switch (texture.type)
+            {
+                case CANVAS:
+                    texture.draw(context, texture.param)
+                    break
+
+                case IMAGE:
+                    context.drawImage(texture.image, 0, 0)
+                    break
+            }
+            context.restore()
+        }
+        context.restore()
+    }
+
+    /**
+     * @private
+     */
+    createBaseTextures()
+    {
+        while (this.baseTextures.length)
+        {
+            this.baseTextures.pop().destroy()
+        }
+        for (let i = 0; i < this.canvases.length; i++)
+        {
+            const base = PIXI.BaseTexture.fromCanvas(this.canvases[i])
+            if (this.scaleMode)
+            {
+                base.scaleMode = this.scaleMode
+            }
+            this.baseTextures.push(base)
+        }
+    }
+
+    /**
+     * pack textures after measurement
+     * @private
+     */
+    pack()
+    {
+        const packers = [new GrowingPacker(this.maxSize, this.sorted[0], this.buffer)]
+        for (let i = 0; i < this.sorted.length; i++)
+        {
+            const block = this.sorted[i]
+            let packed = false
+            for (var j = 0; j < packers.length; j++)
+            {
+                if (packers[j].add(block, j))
+                {
+                    block.canvas = j
+                    packed = true
+                    break
+                }
+            }
+            if (!packed)
+            {
+                packers.push(new GrowingPacker(this.maxSize, block, this.buffer))
+                if (!packers[j].add(block, j))
+                {
+                    console.warn('yy-rendersheet: ' + block.name + ' is too big for the spritesheet.')
+                    return
+                }
+                else
+                {
+                    block.canvas = j
+                }
+            }
+        }
+
+        for (let i = 0; i < packers.length; i++)
+        {
+            const size = packers[i].finish(this.maxSize)
+            this.createCanvas(size)
+        }
+    }
+
+    /**
+     * Changes the drawing function of a texture
+     * NOTE: this only works if the texture remains the same size; use Sheet.render() to resize the texture
+     * @param {string} name
+     * @param {function} draw
+     */
+    changeDraw(name, draw)
+    {
+        const texture = this.textures[name]
+        if (texture.type !== CANVAS)
+        {
+            console.warn('yy-sheet.changeTextureDraw only works with type: CANVAS.')
+            return
+        }
+        texture.draw = draw
+        const context = this.canvases[texture.canvas].getContext('2d')
+        const multiplier = this.scale * this.resolution
+        context.save()
+        context.scale(multiplier, multiplier)
+        context.translate(texture.x / multiplier, texture.y / multiplier)
+        texture.draw(context, texture.param)
+        context.restore()
+        texture.texture.update()
+    }
+}
+
+module.exports = RenderSheet
+},{"./growingpacker.js":417,"pixi.js":351}],419:[function(require,module,exports){
 const exists = require('exists')
 const PIXI = require('pixi.js')
 
@@ -61726,8 +65922,8 @@ module.exports = class Button extends Window
 
     layout()
     {
+        super.layout()
         const item = this.label ? this.label : this.text
-
         if (this.noFitX)
         {
             if (this.align.indexOf('left') !== -1)
@@ -61758,7 +65954,14 @@ module.exports = class Button extends Window
                 item.y = this.center.y - item.height / 2
             }
         }
-        super.layout()
+        if (this.label)
+        {
+            this.label.alpha = this.disabled ? this.get('disabled-alpha') : 1
+        }
+        if (this.sprite)
+        {
+            this.sprite.alpha = this.disabled ? this.get('disabled-alpha') : 1
+        }
     }
 
     get select()
@@ -61781,10 +65984,23 @@ module.exports = class Button extends Window
         this.dirty = true
     }
 
+    get disabled()
+    {
+        return this._disabled
+    }
+    set disabled(value)
+    {
+        if (value !== this._disabled)
+        {
+            this._disabled = value
+            this.layout()
+        }
+    }
+
     drawWindowShape()
     {
         super.drawWindowShape()
-        if (this.isDown || this.select)
+        if (this.isButtonDown || this.select)
         {
             const shadow = this.get('shadow-size')
             this.windowGraphics
@@ -61795,41 +66011,47 @@ module.exports = class Button extends Window
         }
     }
 
-    down(e)
+    down()
     {
-        this.isDown = true
-        this.drawWindowShape()
-        this.emit('pressed', this)
-        e.stopPropagation()
+        super.down(...arguments)
+        if (!this.disabled)
+        {
+            this.isButtonDown = true
+            this.drawWindowShape()
+            this.emit('pressed', this)
+            return true
+        }
     }
 
-    move(e)
+    move(x, y)
     {
-        if (this.isDown)
+        super.move(...arguments)
+        if (this.isButtonDown)
         {
-            if (!this.windowGraphics.containsPoint(e.data.global))
+            if (!this.windowGraphics.containsPoint({ x, y }))
             {
-                this.isDown = false
+                this.isButtonDown = false
                 this.drawWindowShape()
             }
-            e.stopPropagation()
+            return true
         }
     }
 
     up()
     {
-        if (this.isDown)
+        super.up(...arguments)
+        if (this.isButtonDown)
         {
+            this.isButtonDown = false
+            this.drawWindowShape()
             this.emit('clicked', this)
+            return true
         }
-        this.isDown = false
-        this.drawWindowShape()
     }
 }
-},{"./window":397,"exists":17,"pixi.js":333}],393:[function(require,module,exports){
+},{"./window":428,"exists":9,"pixi.js":351}],420:[function(require,module,exports){
 const PIXI = require('pixi.js')
 const exists = require('exists')
-const Input = require('yy-input')
 const clipboard = require('copy-text-to-clipboard')
 
 const Window = require('./window')
@@ -61838,7 +66060,7 @@ const CURSOR_WIDTH = 3
 
 const STOP_AT_CHARS = ',.!@#$%^&*()/?<>-+_= '
 
-module.exports = class Text extends Window
+module.exports = class EditText extends Window
 {
     /**
      *
@@ -61862,7 +66084,7 @@ module.exports = class Text extends Window
         super(options)
         this.fit = exists(options.fit) ? options.fit : true
         this.types.push('Text', 'EditText')
-        this._text = text
+        this._text = '' + text
         this._align = options.align
         this._maxCount = options.maxCount
         this._count = options.count
@@ -61872,12 +66094,7 @@ module.exports = class Text extends Window
         this.max = options.max
         this.words = this.addChild(new PIXI.Text(text))
         this.wordsEdit = this.addChild(new PIXI.Container())
-        this.interactive = true
-        this.on('click', this.startEdit, this)
-
-        this.input = new Input({ noPointers: true })
-        this.input.on('keydown', this.keyDown, this)
-        this.input.on('down', this.down, this)
+        this.on('lose-focus', this.loseFocus, this)
         this.layout()
     }
 
@@ -61963,10 +66180,25 @@ module.exports = class Text extends Window
         return this._cursorPlace
     }
 
+    get disabled()
+    {
+        return this._disabled
+    }
+    set disabled(value)
+    {
+        if (this._disabled !== value)
+        {
+            this._disabled = value
+            this.layout()
+        }
+    }
+
     layout()
     {
+        this.textCursor = null
         this.words.style.fontFamily = this.get('font-family')
         this.words.style.fontSize = this.get('font-size')
+        this.words.style.fill = 'white'
         let text = ''
         if (this.count && this._text.length < this.count)
         {
@@ -62010,7 +66242,7 @@ module.exports = class Text extends Window
             fontSize: this.words.style.fontSize,
         }
         let cursorStart = 0
-        if (this.editing)
+        if (this.editing && !this.disabled)
         {
             this.words.visible = false
             this.wordsEdit.visible = true
@@ -62061,8 +66293,7 @@ module.exports = class Text extends Window
             if (!this.select.length)
             {
                 this.textCursor = this.wordsEdit.addChild(new PIXI.Sprite(PIXI.Texture.WHITE))
-                this.textCursor.height = this.lastHeight || this.wordsEdit.height
-                this.lastHeight = !this.lastHeight || this.textCursor.height > this.lastHeight ? this.textCursor.height : this.lastHeight
+                this.textCursor.height = this.wordsEdit.height
                 this.textCursor.width = CURSOR_WIDTH
                 this.textCursor.tint = this.get('edit-foreground-color')
                 this.textCursor.x = cursorStart
@@ -62076,26 +66307,38 @@ module.exports = class Text extends Window
         {
             this.words.visible = true
             this.wordsEdit.visible = false
-            this.words.tint = this._color || this.get('foreground-color')
-            // switch (this.align)
-            // {
-            //     case 'middle':
-            //     case 'center':
-            //         // this.words.x = this.words.width / 2 - this.words.width / 2
-            //         break
-            //     case 'left':
-            //         this.words.x = 0
-            //         break
-            //     case 'right':
-            //         // this.words.x = this.width - this.words.width
-            //         break
-            // }
+            this.words.style.fill = this.disabled ? this.get('foreground-disabled-color') : this.get('foreground-color')
+            switch (this.align)
+            {
+                case 'middle':
+                case 'center':
+                    this.words.x = this.center.x - this.words.width / 2
+                    break
+                case 'left':
+                    this.words.x = 0
+                    break
+                case 'right':
+                    this.words.x = this.right - this.words.width
+                    break
+            }
         }
         super.layout()
+        this.wordsEdit.x = 0
+        if (this.textCursor)
+        {
+            if (this.textCursor.x + this.textCursor.width > this.right)
+            {
+                this.wordsEdit.x = this.right - this.textCursor.x - this.textCursor.width
+            }
+        }
     }
 
-    startEdit(e)
+    down(x, y)
     {
+        if (this.disabled)
+        {
+            return
+        }
         if (!this.editing)
         {
             this.emit('editing', this)
@@ -62108,20 +66351,23 @@ module.exports = class Text extends Window
             }
             this.cursorPlace = this._text.length
             this.layout()
+            return true
         }
         else
         {
             this.select = []
             for (let letter of this.wordsEdit.children)
             {
-                if (letter.isLetter && letter.containsPoint(e.data.global))
+                const point = { x, y }
+                if (letter.isLetter && letter.containsPoint(point))
                 {
-                    const local = letter.toLocal(e.data.global)
+                    const local = letter.toLocal(point)
                     this.cursorPlace = letter.index + (local.x > letter.width / 2 ? 1 : 0)
                     this.layout()
-                    return
+                    return true
                 }
             }
+            return true
         }
     }
 
@@ -62169,19 +66415,18 @@ module.exports = class Text extends Window
                             this.text = this._text.substr(0, this.cursorPlace) + letter + this._text.substr(this.cursorPlace)
                             this.cursorPlace++
                             this.layout()
-                            data.event.stopPropagation()
                         }
                     }
                 }
         }
+        return true
     }
 
-    ctrl(left)
+    ctrl()
     {
-
     }
 
-    keyDown(code, special, data)
+    keydown(code, special, data)
     {
         if (this.editing)
         {
@@ -62197,8 +66442,7 @@ module.exports = class Text extends Window
                                 this.select = [this.cursorPlace - 1]
                                 this.cursorPlace--
                                 this.layout()
-                                data.event.stopPropagation()
-                                return
+                                return true
                             }
                         }
                         else if (this.cursorPlace !== 0)
@@ -62213,10 +66457,10 @@ module.exports = class Text extends Window
                             }
                             this.cursorPlace--
                             this.layout()
-                            data.event.stopPropagation()
-                            return
+                            return true
                         }
                         break
+
                     case 39:
                         if (!this.select.length)
                         {
@@ -62225,9 +66469,8 @@ module.exports = class Text extends Window
                                 this.select = [this.cursorPlace]
                                 this.cursorPlace++
                                 this.layout()
-                                data.event.stopPropagation()
-                                return
                             }
+                            return true
                         }
                         else if (this.cursorPlace !== this._text.length)
                         {
@@ -62241,12 +66484,10 @@ module.exports = class Text extends Window
                             }
                             this.cursorPlace++
                             this.layout()
-                            data.event.stopPropagation()
-                            return
+                            return true
                         }
-                        break
                     default:
-                        this.addLetter(code, true, data)
+                        return this.addLetter(code, true, data)
                 }
             }
             else if (special.ctrl)
@@ -62260,8 +66501,7 @@ module.exports = class Text extends Window
                             this.text = this._text.slice(0, this.select[0]) + this._text.slice(this.select[this.select.length - 1] + 1)
                             this.select = []
                             this.layout()
-                            data.event.stopPropagation()
-                            return
+                            return true
                         }
                         else
                         {
@@ -62278,10 +66518,9 @@ module.exports = class Text extends Window
                             this.text = '' + this._text.slice(0, start) + this._text.slice(end)
                             this.layout()
                             this.cursorPlace = start
-                            data.event.stopPropagation()
-                            return
+                            return true
                         }
-                        break
+
                     case 67: // ctrl-c
                         let copy = ''
                         if (this.select.length)
@@ -62296,7 +66535,7 @@ module.exports = class Text extends Window
                             copy = this._text
                         }
                         clipboard(copy)
-                        break
+                        return true
 
                     case 88: // ctrl-x
                         let cut = ''
@@ -62319,8 +66558,7 @@ module.exports = class Text extends Window
                             this.select = []
                             this.layout()
                         }
-                        data.event.stopPropagation()
-                        break
+                        return true
                 }
             }
             else
@@ -62334,20 +66572,21 @@ module.exports = class Text extends Window
                             this.text = this._text.slice(0, this.select[0]) + this._text.slice(this.select[this.select.length - 1] + 1)
                             this.select = []
                             this.layout()
-                            data.event.stopPropagation()
-                            return
+                            return true
                         }
                         else
                         {
                             if (this.cursorPlace > 0)
                             {
                                 this.text = this._text.slice(0, this.cursorPlace - 1) + this._text.slice(this.cursorPlace)
+                                if (this.cursorPlace !== this._text.length)
+                                {
+                                    this.cursorPlace--
+                                }
                                 this.layout()
-                                data.event.stopPropagation()
-                                return
+                                return true
                             }
                         }
-                        break
 
                     case 37: // left arrow
                         if (this.select.length)
@@ -62360,8 +66599,7 @@ module.exports = class Text extends Window
                             this.cursorPlace = this.cursorPlace < 0 ? 0 : this.cursorPlace
                         }
                         this.layout()
-                        data.event.stopPropagation()
-                        break
+                        return true
 
                     case 39: // right arrow
                         if (this.select.length)
@@ -62374,157 +66612,288 @@ module.exports = class Text extends Window
                             this.cursorPlace = this.cursorPlace > this._text.length ? this._text.length : this.cursorPlace
                         }
                         this.layout()
-                        data.event.stopPropagation()
-                        break
+                        return true
 
                     case 13:
                         this.editing = false
                         this.emit('changed', this)
                         this.layout()
-                        data.event.stopPropagation()
-                        break
+                        return true
 
                     case 27:
                         this.editing = false
                         this.words.text = this.original
                         this.layout()
-                        data.event.stopPropagation()
-                        break
+                        return true
 
                     default:
-                        this.addLetter(code, false, data)
+                        return this.addLetter(code, false, data)
                 }
             }
         }
     }
 
-    down(x, y)
+    loseFocus()
     {
         if (this.editing)
         {
-            const point = new PIXI.Point(x, y)
-            if (!this.words.containsPoint(point))
-            {
-                this.editing = false
-                this.emit('changed', this)
-                this.layout()
-            }
+            this.editing = false
+            this.emit('changed', this)
+            this.layout()
         }
     }
 }
-},{"./window":397,"copy-text-to-clipboard":14,"exists":17,"pixi.js":333,"yy-input":386}],394:[function(require,module,exports){
-module.exports={
-    "Window": {
-        "font-family": "consolas",
-        "font-size": "2em",
-        "corners": 10,
-        "background-color": "#dddddd",
-        "foreground-color": 0,
-        "spacing": 10,
-        "selected-border-size": 2,
-        "selected-border-color": "#aaaaaa",
-        "resize-border-size": 20,
-        "resize-border-color": "#888888",
-        "text-padding-left": 0,
-        "text-padding-right": 0,
-        "text-padding-top": 0,
-        "text-padding-bottom": 0,
-        "shadow-size": 2,
-        "shadow-alpha": 0.15,
-        "shadow-blur": 2,
-        "minimum-width": 50,
-        "minimum-height": 50
-    },
-    "Button": {
-        "foreground-color": 0,
-        "background-color": "#f9f9f9",
-        "text-padding-left": 20,
-        "text-padding-right": 20,
-        "text-padding-top": 10,
-        "text-padding-bottom": 10,
-        "background-select-color": "#c9c9c9"
-    },
-    "Text": {
-        "foreground-color": "0",
-        "background-color": "#dddddd",
-        "corners": 0,
-        "spacing": 3
-    },
-    "EditText": {
-        "edit-foreground-color": "#ffffff",
-        "edit-background-color": "#888888",
-        "edit-foreground-select-color": "#ffffff",
-        "edit-background-select-color": "#000000"
-    },
-    "Stack": {
-        "transparent": true
-    },
-    "Dialog": {
-        "text-padding-left": 10,
-        "text-padding-right": 10,
-        "text-padding-top": 10,
-        "text-padding-bottom": 10
-    },
-    "Picture": {
-        "spacing": 0
-    },
-    "Spacer": {
-        "spacing": 0
-    },
-    "Scroll": {
-    }
-}
-},{}],395:[function(require,module,exports){
-const Window = require('./window')
-const exists = require('exists')
+},{"./window":428,"copy-text-to-clipboard":6,"exists":9,"pixi.js":351}],421:[function(require,module,exports){
+const PIXI = require('pixi.js')
 
-module.exports = class Tree extends Window
+const Window = require('./window')
+
+module.exports = class List extends Window
 {
     /**
      * @param {object} [options]
+     * @param {boolean} [options.many] select many
+     * @emit select (item, List)
+     * @emit unselect (item, List)
      */
     constructor(options)
     {
         options = options || {}
-        options.transparent = exists(options.transparent) ? options.transparent : false
         super(options)
-        this.types.push('Tree')
+        this.types.push('List')
+        this.items = []
+        this.selected = []
+        this.many = options.many
+        this.selectGraphics = this.content.addChild(new PIXI.Graphics())
+    }
+
+    add(c, noLayout)
+    {
+        this.items.push(c)
+        this.content.addChild(c)
+        if (!noLayout)
+        {
+            this.layout()
+        }
+        return c
+    }
+
+    remove(c, noLayout)
+    {
+        this.items.splice(this.items.indexOf(c), 1)
+        this.content.removeChild(c)
+        if (!noLayout)
+        {
+            this.layout()
+        }
+    }
+
+    clear(noLayout)
+    {
+        this.items = []
+        this.content.removeChildren()
+        if (!noLayout)
+        {
+            this.layout()
+        }
     }
 
     layout()
     {
+        const between = this.get('between')
         const spacing = this.get('spacing')
-        let width = spacing, height = spacing, largestWidth = 0, largestHeight = 0
-        for (let w of this.children)
+        let width = this.right
+        for (let child of this.items)
         {
-            if (w.types)
+            width = (child.width > width) ? child.width : width
+        }
+        this._windowWidth = width + spacing * 2
+        let y = 0
+        for (let w of this.items)
+        {
+            w.y = y
+            y += w.height + between
+        }
+        this._windowHeight = y - between + spacing * 2
+        this.showSelected()
+        super.layout()
+    }
+
+    showSelected()
+    {
+        const spacing = this.get('spacing') * 2
+        const color = this.get('background-select-color')
+        this.selectGraphics.clear()
+        for (let select of this.selected)
+        {
+            this.selectGraphics
+                .beginFill(color)
+                .drawRect(0, select.y, this._windowWidth - spacing, select.height)
+                .endFill()
+        }
+    }
+
+    down(x, y)
+    {
+        const point = { x, y }
+        for (let item of this.items)
+        {
+            if (item.containsPoint(point))
             {
-                largestWidth = (w.width > largestWidth) ? w.width : largestWidth
-                largestHeight = (w.height > largestHeight) ? w.height : largestHeight
-                width += w.width + spacing
-                height += w.height + spacing
+                if (this.many)
+                {
+                    const index = this.selected.indexOf(item)
+                    if (index !== -1)
+                    {
+                        this.emit('unselect', item, this)
+                        this.selected.splice(index, 1)
+                    }
+                    else
+                    {
+                        this.emit('select', item, this)
+                        this.selected.push(item)
+                    }
+                    this.layout()
+                }
+                else
+                {
+                    if (this.selected[0] !== item)
+                    {
+                        this.emit('select', item, this)
+                        this.selected[0] = item
+                        this.layout()
+                    }
+                }
+                return true
             }
         }
+    }
+}
+},{"./window":428,"pixi.js":351}],422:[function(require,module,exports){
+const exists = require('exists')
+
+const Window = require('./window')
+
+module.exports = class Text extends Window
+{
+    /**
+     * @param {string} text
+     * @param {object} [options]
+     */
+    constructor(width, height, options)
+    {
+        options = options || {}
+        options.transparent = exists(options.transparent) ? options.transparent : true
+        super(options)
+        this.types.push('Spacer')
+    }
+
+    containsPoint(point)
+    {
+        return this.label.containsPoint(point)
+    }
+}
+},{"./window":428,"exists":9}],423:[function(require,module,exports){
+const Window = require('./window')
+const exists = require('exists')
+
+module.exports = class Stack extends Window
+{
+    /**
+     * @param {Array} [items] items to add
+     * @param {object} [options]
+     * @param {boolean} [options.horizontal] horizontal instead of vertical
+     * @param {boolean} [options.sameWidth]
+     * @param {boolean} [options.sameHeight]
+     * @param {string} [options.justify=center] left or right (justify in the non-stacked direction)
+     */
+    constructor(items, options)
+    {
+        if (!Array.isArray(items))
+        {
+            options = items
+            items = null
+        }
+        options = options || {}
+        options.transparent = exists(options.transparent) ? options.transparent : true
+        super(options)
+        this.types.push('Stack')
+        this.horizontal = options.horizontal
+        this.sameWidth = options.sameWidth
+        this.sameHeight = options.sameHeight
+        this.justify = options.justify
+        this.items = []
+        if (items)
+        {
+            for (let item of items)
+            {
+                this.add(item, true)
+            }
+        }
+    }
+
+    add(c, noReflow)
+    {
+        this.items.push(c)
+        this.content.addChild(c)
+        if (!noReflow)
+        {
+            this.layout()
+        }
+        return c
+    }
+
+    remove(c, noReflow)
+    {
+        this.items.splice(this.items.indexOf(c), 1)
+        this.content.removeChild(c)
+        if (!noReflow)
+        {
+            this.layout()
+        }
+    }
+
+    layout()
+    {
+        for (let item of this.items)
+        {
+            if (item.types)
+            {
+                item.layout()
+            }
+        }
+        const between = this.get('between')
+        const spacing = this.get('spacing')
+        let width = spacing, height = spacing, largestWidth = 0, largestHeight = 0
+        for (let w of this.items)
+        {
+            largestWidth = (w.width > largestWidth) ? w.width : largestWidth
+            largestHeight = (w.height > largestHeight) ? w.height : largestHeight
+            width += w.width + between
+            height += w.height + between
+        }
+        width = width - between + spacing
+        height = height - between + spacing
         if (this.sameWidth)
         {
-            for (let w of this.children)
+            for (let w of this.items)
             {
-                if (w.types && w.width !== largestWidth)
+                if (w.width !== largestWidth)
                 {
                     width += (largestWidth - w.width)
-                    w._windowWidth = largestWidth
+                    w.width = largestWidth
                     w.layout()
                 }
             }
         }
         if (this.sameHeight)
         {
-            for (let w of this.children)
+            for (let w of this.items)
             {
-                if (w.types && w.height !== largestHeight)
+                if (w.height !== largestHeight)
                 {
                     height += (largestHeight - w.height)
-                    w._windowHeight = largestHeight
+                    w.height = largestHeight
                     w.layout()
                 }
             }
@@ -62539,53 +66908,519 @@ module.exports = class Tree extends Window
             this._windowWidth = largestWidth + spacing * 2
             this._windowHeight = height
         }
-        let i = spacing
-        for (let w of this.children)
+        let i = 0
+        for (let w of this.items)
         {
-            if (w.types)
+            if (this.horizontal)
             {
-                if (this.horizontal)
+                w.x = i
+                i += w.width + between
+                // switch (this.justify)
+                // {
+                //     case 'left':
+                //         w.y = spacing
+                //         break
+
+                //     case 'right':
+                //         w.y = spacing * 2 + largestHeight - w.width
+                //         break
+
+                //     default:
+                //         w.y = largestHeight / 2 - w.height / 2 + spacing
+                // }
+            }
+            else
+            {
+                w.y = i
+                i += w.height + between
+                // switch (this.justify)
+                // {
+                //     case 'left':
+                //         w.x = spacing
+                //         break
+
+                //     case 'right':
+                //         w.x = spacing * 2 + largestWidth - w.width
+                //         break
+
+                //     default:
+                //         w.x = largestWidth / 2 - w.width / 2 + spacing
+                // }
+            }
+        }
+        super.layout()
+    }
+}
+},{"./window":428,"exists":9}],424:[function(require,module,exports){
+const PIXI = require('pixi.js')
+const exists = require('exists')
+
+const Window = require('./window')
+
+module.exports = class Text extends Window
+{
+    /**
+     * @param {string} text
+     * @param {object} [options]
+     * @param {PIXI.TextStyle} [options.textStyle]
+     */
+    constructor(text, options)
+    {
+        options = options || {}
+        options.transparent = exists(options.transparent) ? options.transparent : true
+        options.fit = exists(options.fit) ? options.fit : true
+        super(options)
+        this.types.push('Text')
+        const style = options.textStyle || {}
+        style.fontFamily = style.fontFamily || this.get('font-family')
+        style.fontSize = style.fontSize || this.get('font-size')
+        style.fill = style.fill || this.get('foreground-color')
+        this.label = this.content.addChild(new PIXI.Text(text, style))
+    }
+
+    layout()
+    {
+        this.label.style.fill = this.get('foreground-color')
+        super.layout()
+    }
+
+    containsPoint(point)
+    {
+        return this.label.containsPoint(point)
+    }
+
+    get text()
+    {
+        return this.label.text
+    }
+    set text(value)
+    {
+        this.label.text = value
+    }
+}
+},{"./window":428,"exists":9,"pixi.js":351}],425:[function(require,module,exports){
+module.exports={
+    "Window": {
+        "font-family": "consolas",
+        "font-size": "1.75em",
+        "corners": 10,
+        "background-color": "#dddddd",
+        "foreground-color": 0,
+        "spacing": 10,
+        "selected-border-size": 2,
+        "selected-border-color": "#aaaaaa",
+        "resize-border-size": 20,
+        "resize-border-color": "#888888",
+        "shadow-size": 2,
+        "shadow-alpha": 0.2,
+        "shadow-blur": 2,
+        "minimum-width": 50,
+        "minimum-height": 50,
+        "scrollbar-width": 10,
+        "scrollbar-foreground-color": "#8888ff",
+        "scrollbar-background-color": "#aaaaaa",
+        "scrollbar-spacing": 2
+    },
+    "Button": {
+        "foreground-color": 0,
+        "background-color": "#f9f9f9",
+        "background-select-color": "#c9c9c9",
+        "disabled-alpha": 0.5
+    },
+    "Text": {
+        "corners": 0
+    },
+    "EditText": {
+        "spacing": 3,
+        "edit-foreground-color": "#ffffff",
+        "edit-background-color": "#888888",
+        "edit-foreground-select-color": "#ffffff",
+        "edit-background-select-color": "#000000",
+        "foreground-disabled-color": "#bbbbbb"
+    },
+    "Stack": {
+        "between": 5,
+        "spacing": 0
+    },
+    "List": {
+        "between": 5,
+        "background-color": "#ffffff",
+        "background-select-color": "#ddddff"
+    },
+    "Dialog": {
+    },
+    "Spacer": {
+        "minimum-width": 0,
+        "minimum-height": 0,
+        "spacing": 0
+    },
+    "Tree": {
+        "between": 4,
+        "background-color": "#ffffff",
+        "background-select-color": "#ddddff"
+    }
+}
+},{}],426:[function(require,module,exports){
+const PIXI = require('pixi.js')
+const exists = require('exists')
+const Pixel = require('yy-pixel').Pixel
+const RenderSheet = require('yy-rendersheet')
+
+const UI = require('../')
+const FOLDER = require('../images/folder.json')
+
+module.exports = class Tree extends UI.Window
+{
+    /**
+     * @param {object} [options]
+     * @param {boolean} [options.entryMove]
+     * @param {boolean} [options.noFolderSelection]
+     * @param {boolean} [options.noEntrySelection]
+     * @emit select (item, List)
+     * @emit unselect (item, List)
+     */
+    constructor(options)
+    {
+        options = options || {}
+        options.transparent = exists(options.transparent) ? options.transparent : false
+        options.overflow = exists(options.overflow) ? options.overflow : true
+        super(options)
+        this.types.push('Tree')
+        this.root = { type: 'folder', children: [] }
+        this.noFolderSelection = options.noFolderSelection
+        this.noEntrySelection = options.noEntrySelection
+        this.sheet = new RenderSheet({ scaleMode: PIXI.SCALE_MODES.NEAREST })
+        Pixel.add(FOLDER, this.sheet)
+        this.sheet.render()
+        this.folderTexture = this.sheet.getTexture('folder-0')
+        this.folderOpenTexture = this.sheet.getTexture('folder-1')
+        this.selectGraphics = this.addChild(new PIXI.Sprite(PIXI.Texture.WHITE))
+        this.selectGraphics.tint = this.get('background-select-color')
+        this.selectGraphics.visible = false
+        this.folders = []
+        this.entries = []
+    }
+
+    /**
+     *
+     * @param {object} [parent]
+     * @param {object} [options]
+     * @param {string} [options.name]
+     * @param {string} [options.noLayout]
+     * @param {number} [options.index]
+     */
+    addFolder(parent, options)
+    {
+        options = options || {}
+        parent = parent || this.root
+        const folder = options || {}
+        folder.type = 'folder'
+        folder.children = []
+        folder.icon = new PIXI.Sprite(this.folderOpenTexture)
+        folder.text = new UI.Text(options.name, { theme: { spacing: 0 } })
+        folder.icon.width = folder.icon.height = folder.text.label.height
+        folder.stack = this.addChild(new UI.Stack([folder.icon, folder.text], { horizontal: true }))
+        this.indent = folder.icon.width + folder.stack.get('between')
+        this.folders.push(folder)
+        if (exists(options.index))
+        {
+            parent.children.splice(options.index, 0, folder)
+        }
+        else
+        {
+            parent.children.push(folder)
+        }
+        if (!options.noLayout)
+        {
+            this.layout()
+        }
+        this.folders.push(folder)
+        return folder
+    }
+
+    /**
+     *
+     * @param {object} [parent]
+     * @param {object} [options]
+     * @param {string} [options.name]
+     * @param {string} [options.noLayout]
+     * @param {number} [options.index]
+     */
+    addEntry(parent, options)
+    {
+        parent = parent || this.root
+        const entry = options || {}
+        entry.type = 'entry'
+        entry.text = this.addChild(new UI.Text(options.name, { theme: { spacing: 0 } }))
+        if (exists(options.index))
+        {
+            parent.children.splice(options.index, 0, entry)
+        }
+        else
+        {
+            parent.children.push(entry)
+        }
+        if (!options.noLayout)
+        {
+            this.layout()
+        }
+        this.entries.push(entry)
+        return entry
+    }
+
+    draw(data)
+    {
+        if (data.type === 'folder')
+        {
+            this.drawFolder(data)
+        }
+        else if (data.type === 'entry')
+        {
+            this.drawEntry(data)
+        }
+    }
+
+    drawFolder(folder)
+    {
+        if (this.isVisible)
+        {
+            folder.stack.visible = true
+            folder.stack.position.set(this.currentIndent, this.current)
+            if (this.selected && this.selected === folder)
+            {
+                this.selectGraphics.position.set(this.currentIndent + folder.icon.width + folder.stack.get('between'), this.current)
+                this.selectGraphics.width = folder.text.width
+                this.selectGraphics.height = folder.text.height
+                this.selectGraphics.visible = true
+            }
+            this.current += folder.stack.height + this.get('between')
+            if (folder.collapsed)
+            {
+                folder.icon.texture = this.folderTexture
+                this.isVisible = false
+            }
+            else
+            {
+                folder.icon.texture = this.folderOpenTexture
+                this.currentIndent += this.get('indent')
+            }
+            for (let child of folder.children)
+            {
+                this.draw(child)
+            }
+            if (!folder.collapsed)
+            {
+                this.currentIndent -= this.get('indent')
+            }
+            this.isVisible = true
+        }
+        else
+        {
+            folder.stack.visible = false
+            for (let child of folder.children)
+            {
+                this.draw(child)
+            }
+        }
+    }
+
+    drawEntry(entry)
+    {
+        if (this.isVisible)
+        {
+            entry.text.visible = true
+            entry.text.position.set(this.currentIndent, this.current)
+            if (this.selected && this.selected === entry)
+            {
+                this.selectGraphics.position.set(this.currentIndent, this.current)
+                this.selectGraphics.width = entry.text.width
+                this.selectGraphics.height = entry.text.height
+                this.selectGraphics.visible = true
+            }
+            this.current += entry.text.height + this.get('between')
+        }
+        else
+        {
+            entry.text.visible = false
+        }
+    }
+
+    layout()
+    {
+        this.selectGraphics.visible = false
+        this.current = 0
+        this.currentIndent = 0
+        this.isVisible = true
+        for (let child of this.root.children)
+        {
+            this.draw(child)
+        }
+        super.layout()
+    }
+
+    change(item)
+    {
+        if (this.selected !== item)
+        {
+            if (this.selected)
+            {
+                this.emit('unselect', this.selected)
+            }
+            this.selected = item
+            this.emit('select', this.selected)
+            this.layout()
+        }
+    }
+
+    down(x, y)
+    {
+        const point = { x, y }
+        for (let folder of this.folders)
+        {
+            if (folder.stack.items[0].containsPoint(point))
+            {
+                folder.collapsed = !folder.collapsed
+                this.layout()
+                return true
+            }
+            else if (!this.noFolderSelection && folder.stack.items[1].containsPoint(point))
+            {
+                this.change(folder)
+                return true
+            }
+        }
+        if (!this.noEntrySelection)
+        {
+            for (let entry of this.entries)
+            {
+                if (entry.text.containsPoint(point))
                 {
-                    w.x = i
-                    i += w.width + spacing
-                    switch (this.justify)
-                    {
-                        case 'left':
-                            w.y = spacing
-                            break
-
-                        case 'right':
-                            w.y = spacing * 2 + largestHeight - w.width
-                            break
-
-                        default:
-                            w.y = largestHeight / 2 - w.height / 2 + spacing
-                    }
-                }
-                else
-                {
-                    w.y = i
-                    i += w.height + spacing
-                    switch (this.justify)
-                    {
-                        case 'left':
-                            w.x = spacing
-                            break
-
-                        case 'right':
-                            w.x = spacing * 2 + largestWidth - w.width
-                            break
-
-                        default:
-                            w.x = largestWidth / 2 - w.width / 2 + spacing
-                    }
+                    this.change(entry)
+                    return true
                 }
             }
         }
     }
+
+    previous(original)
+    {
+        function traverse(start)
+        {
+            for (let child of start.children)
+            {
+                if (child === original)
+                {
+                    return last
+                }
+                if (child.type === 'folder')
+                {
+                    last = child
+                    const result = traverse(child)
+                    if (result)
+                    {
+                        return result
+                    }
+                }
+                else
+                {
+                    last = child
+                }
+            }
+        }
+        let last = this.root.children[0]
+        return traverse(this.root)
+    }
+
+    next(original)
+    {
+        function traverse(start)
+        {
+            for (let child of start.children)
+            {
+                if (next)
+                {
+                    return child
+                }
+                if (child === original)
+                {
+                    next = true
+                }
+                if (child.type === 'folder')
+                {
+                    const result = traverse(child)
+                    if (result)
+                    {
+                        return result
+                    }
+                }
+            }
+        }
+        let next
+        return traverse(this.root)
+    }
+
+    keydown(code, special)
+    {
+        if (this.isFocused())
+        {
+            if (!special.ctrl && !special.meta && !special.shift)
+            {
+                switch (code)
+                {
+                    case 37: // left
+                        if (this.selected && this.selected.type === 'folder')
+                        {
+                            this.selected.collapsed = true
+                            this.layout()
+                        }
+                        break
+                    case 39: // right
+                        if (this.selected && this.selected.type === 'folder')
+                        {
+                            this.selected.collapsed = false
+                            this.layout()
+                        }
+                        break
+                    case 38: //up
+                        if (this.selected)
+                        {
+                            const previous = this.previous(this.selected)
+                            if (previous)
+                            {
+                                if (this.viewport)
+                                {
+                                    const center = this.viewport.center
+                                    this.viewport.moveCenter(center.x, center.y - previous.height)
+                                }
+                                this.change(previous)
+                            }
+                        }
+                        break
+                    case 40: //down
+                        if (this.selected)
+                        {
+                            const next = this.next(this.selected)
+                            if (next)
+                            {
+                                if (this.viewport)
+                                {
+                                    const center = this.viewport.center
+                                    this.viewport.moveCenter(center.x, center.y + next.height)
+                                }
+                                this.change(next)
+                            }
+                        }
+                }
+            }
+            console.log(code)
+        }
+    }
 }
-},{"./window":397,"exists":17}],396:[function(require,module,exports){
+},{"../":4,"../images/folder.json":3,"exists":9,"pixi.js":351,"yy-pixel":410,"yy-rendersheet":418}],427:[function(require,module,exports){
 const PIXI = require('pixi.js')
+const Input = require('yy-input')
+const exists = require('exists')
+
 const THEME = require('./theme.json')
 
 module.exports = class UI extends PIXI.Container
@@ -62593,6 +67428,12 @@ module.exports = class UI extends PIXI.Container
     /**
      * @param {object} [options]
      * @param {object} [options.theme]
+     * @param {object} [options.div]
+     * @param {(number|string)} [options.background=transparent] fill in the background with this color
+     * @param {number} [options.width=window.innerWidth] width of UI
+     * @param {number} [options.height = window.innerHeight] height of UI
+     * @param {boolean} [options.preventDefault=true] prevent default on input events
+     * @param {boolean} [options.chromeDebug=true] allow ctrl-r to refresh page and ctrl-shift-i to open debug window
      */
     constructor(options)
     {
@@ -62600,11 +67441,254 @@ module.exports = class UI extends PIXI.Container
         options = options || {}
         this.type = 'UI'
         this.theme = options.theme || THEME
+        const preventDefault = exists(options.preventDefault) ? options.preventDefault : true
+        const chromeDebug = exists(options.chromeDebug) ? options.chromeDebug : true
+        if (options.background)
+        {
+            this.bg = this.addChild(new PIXI.Sprite(PIXI.Texture.WHITE))
+            this.bg.tint = options.background
+        }
+        this.resize(options.width, options.height)
+        this.input = new Input({ preventDefault, chromeDebug })
+        this.input.on('down', this.down, this)
+        this.input.on('move', this.move, this)
+        this.input.on('up', this.up, this)
+        this.input.on('keydown', this.keydown, this)
+        this.input.on('keyup', this.keyup, this)
+        this.input.on('wheel', this.wheel, this)
+        this.listeners = {}
+
     }
 
-    update()
+    /**
+     *
+     * @param {number} [width=window.innerWidth] of the screen
+     * @param {number} [height=window.innerHeight
+     */
+    resize(width, height)
     {
-        this.editing = false
+        this.w = exists(width) ? width : window.innerWidth
+        this.h = exists(height) ? height : window.innerHeight
+        if (this.bg)
+        {
+            this.bg.width = this.w
+            this.bg.height = this.h
+        }
+    }
+
+    down(x, y, data)
+    {
+        function check(parent)
+        {
+            for (let i = parent.children.length - 1; i >= 0; i--)
+            {
+                const child = parent.children[i]
+                if (check(child))
+                {
+                    return true
+                }
+                if (child.visible && child.types && child.windowGraphics.containsPoint(point))
+                {
+                    if (child.down(x, y, data))
+                    {
+                        if (selected && selected !== child)
+                        {
+                            selected.focused = false
+                            selected.emit('lose-focus')
+                        }
+                        that.selected = child
+                        that.selected.focused = true
+                        that.selected.emit('focus')
+                        return true
+                    }
+                }
+            }
+        }
+
+        const point = { x, y }
+        const selected = this.selected
+        const that = this
+        // if (selected)
+        // {
+        //     if (selected.windowGraphics.containsPoint(point) && selected.down(x, y, data))
+        //     {
+        //         return true
+        //     }
+        // }
+        if (check(this))
+        {
+            return true
+        }
+    }
+
+    move(x, y, data)
+    {
+        function check(parent)
+        {
+            for (let i = parent.children.length - 1; i >= 0; i--)
+            {
+                const child = parent.children[i]
+                if (check(child))
+                {
+                    return true
+                }
+                if (child.visible && child.types)
+                {
+                    if (child.move(x, y, data))
+                    {
+                        return true
+                    }
+                }
+            }
+        }
+        if (check(this))
+        {
+            data.event.stopPropagation()
+            return true
+        }
+    }
+
+    wheel(dx, dy, dz, data)
+    {
+        function check(parent)
+        {
+            for (let i = parent.children.length - 1; i >= 0; i--)
+            {
+                const child = parent.children[i]
+                if (check(child))
+                {
+                    return true
+                }
+                if (child.visible && child.types && child.windowGraphics.containsPoint(point))
+                {
+                    if (child.wheel(dx, dy, dz, data))
+                    {
+                        return true
+                    }
+                }
+            }
+        }
+        const point = { x: data.x, y: data.y }
+        if (check(this))
+        {
+            data.event.stopPropagation()
+            return true
+        }
+    }
+
+    up(x, y, data)
+    {
+        function check(parent)
+        {
+            for (let i = parent.children.length - 1; i >= 0; i--)
+            {
+                const child = parent.children[i]
+                check(child)
+                if (child.visible && child.types)
+                {
+                    if (child.up(x, y, data))
+                    {
+                        return true
+                    }
+                }
+            }
+        }
+        if (check(this))
+        {
+            return true
+        }
+    }
+
+    keydown(code, special, e)
+    {
+        function check(parent)
+        {
+            for (let i = parent.children.length - 1; i >= 0; i--)
+            {
+                const child = parent.children[i]
+                check(child)
+                if (child.types)
+                {
+                    if (child !== selected && child.keydown(code, special, e))
+                    {
+                        return true
+                    }
+                }
+            }
+        }
+        const selected = this.selected
+        if (selected)
+        {
+            if (this.selected.keydown(code, special, e))
+            {
+                return true
+            }
+        }
+        if (check(this))
+        {
+            return true
+        }
+        else if (this.listeners['keydown'])
+        {
+            if (this.listeners['keydown'](code, special, e))
+            {
+                return true
+            }
+        }
+    }
+
+    keyup(code, special, e)
+    {
+        function check(parent)
+        {
+            for (let i = parent.children.length - 1; i >= 0; i--)
+            {
+                const child = parent.children[i]
+                check(child)
+                if (child.types)
+                {
+                    if (child !== selected && child.keyup(code, special, e))
+                    {
+                        return true
+                    }
+                }
+            }
+        }
+        const selected = this.selected
+        if (selected)
+        {
+            if (selected.keyup(code, special, e))
+            {
+                e.stopPropagation()
+                return
+            }
+        }
+        if (check(this))
+        {
+            e.stopPropagation()
+        }
+        else if (this.listeners['keyup'])
+        {
+            if (this.listeners['keyup'](code, special, e))
+            {
+                e.stopPropagation()
+            }
+        }
+    }
+
+    /**
+     *
+     * @param {string} type
+     * @param {function} callback
+     * @param {object} context
+     */
+    addListener(type, callback)
+    {
+        this.listeners[type] = callback
+    }
+
+    update(elapsed)
+    {
         let dirty
         const queue = [...this.children]
         let i = 0
@@ -62613,10 +67697,7 @@ module.exports = class UI extends PIXI.Container
             const w = queue[i]
             if (w.types)
             {
-                if (w.editing)
-                {
-                    this.editing = true
-                }
+                w.update(elapsed)
                 if (w.dirty)
                 {
                     dirty = true
@@ -62629,10 +67710,11 @@ module.exports = class UI extends PIXI.Container
         return dirty
     }
 }
-},{"./theme.json":394,"pixi.js":333}],397:[function(require,module,exports){
+},{"./theme.json":425,"exists":9,"pixi.js":351,"yy-input":406}],428:[function(require,module,exports){
 const PIXI = require('pixi.js')
 const exists = require('exists')
 const pointInTriangle = require('point-in-triangle')
+const Viewport = require('pixi-viewport')
 
 const THEME = require('./theme.json')
 
@@ -62647,7 +67729,15 @@ module.exports = class Window extends PIXI.Container
      * @param {boolean} [options.resizeable]
      * @param {boolean} [options.clickable]
      * @param {number} [options.fit]
+     * @param {number} [options.fitX]
+     * @param {number} [options.fitY]
+     * @param {boolean} [options.noOversizeX] don't allow horizontal resizing beyond the size of the content
+     * @param {boolean} [options.noOversizeY] don't allow vertical resizing beyond the size of the content
+     * @param {boolean|string} [options.overflow=false] true, x, or y
      * @param {object} [options.theme]
+     * @param {string} [options.place] combination of top/center/bottom and left/center/bottom
+     * @param {number} [options.maxHeight]
+     * @param {number} [options.maxWidth]
      */
     constructor(options)
     {
@@ -62656,31 +67746,34 @@ module.exports = class Window extends PIXI.Container
         options = options || {}
         this.windowShadowGraphics = super.addChild(new PIXI.Graphics())
         this.windowGraphics = super.addChild(new PIXI.Graphics())
-        this.content = super.addChild(new PIXI.Container())
-        const mask = this.content.addChild(new PIXI.Graphics())
-        this.content.mask = mask
-        this._resizeable = options.resizeable
-        this._clickable = options.clickable
+        this.scrollGraphics = super.addChild(new PIXI.Graphics())
+        this.resizeGraphics = super.addChild(new PIXI.Graphics())
+        this.contentContainer = super.addChild(new PIXI.Container())
+        const mask = this.contentContainer.addChild(new PIXI.Graphics())
+        this.contentContainer.mask = mask
+        this.content = this.contentContainer.addChild(new PIXI.Container())
+        this.special = super.addChild(new PIXI.Container())
+        this.resizeable = options.resizeable
+        this.clickable = options.clickable
         this.theme = options.theme || {}
-        this.cursor = options.cursor
+        this.changeCursor = options.cursor || null
         this.draggable = options.draggable
+        this.transparent = options.transparent
+        this.place = options.place
+        this.maxHeight = options.maxHeight
+        this.maxWidth = options.maxWidth
         this.noFitX = exists(options.width)
         this._windowWidth = options.width || this.get('minimum-width')
         this.noFitY = exists(options.height)
         this._windowHeight = options.height || this.get('minimum-height')
         this.fit = options.fit
+        this.fitX = options.fitX
+        this.fitY = options.fitY
+        this.noOversizeX = options.noOversizeX
+        this.noOversizeY = options.noOversizeY
+        this.overflow = exists(options.overflow) ? options.overflow : false
         this.drawWindowShape()
-
-        this.changeInteractive()
-        this.on('pointerdown', this.down, this)
-        this.on('pointermove', this.move, this)
-        this.on('pointerup', this.up, this)
-        this.on('pointerupoutside', this.up, this)
-    }
-
-    changeInteractive()
-    {
-        this.interactive = this.draggable || this.resizeable || this.clickable
+        this.on('added', this.layout, this)
     }
 
     getTheme()
@@ -62727,42 +67820,11 @@ module.exports = class Window extends PIXI.Container
         }
     }
 
-    get resizeable()
-    {
-        return this._resizeable
-    }
-    set resizeable(value)
-    {
-        this._resizeable = value
-        this.changeInteractive()
-    }
-
-    get draggable()
-    {
-        return this._draggable
-    }
-    set draggable(value)
-    {
-        this._draggable = value
-        this.changeInteractive()
-    }
-
-    get clickable()
-    {
-        return this._clickable
-    }
-    set clickable(value)
-    {
-        this._clickable = value
-        this.changeInteractive()
-    }
-
     set width(value)
     {
         this._windowWidth = value
         this.noFitX = exists(value) ? true : false
         this.layout()
-        this.drawWindowShape()
     }
     get width()
     {
@@ -62785,132 +67847,233 @@ module.exports = class Window extends PIXI.Container
         this._windowHeight = value
         this.noFitY = exists(value) ? true : false
         this.layout()
-        this.drawWindowShape()
     }
     get height()
     {
         return this._windowHeight
     }
 
-    drawWindowBorder()
-    {
-
-    }
-
     drawWindowShape()
     {
-        this.windowShadowGraphics
-            .clear()
-            .beginFill(0, this.get('shadow-alpha'))
-            .drawRoundedRect(0, 0, this._windowWidth, this._windowHeight, this.get('corners'))
-            .endFill()
         const shadow = this.get('shadow-size')
-        this.windowGraphics
-            .clear()
-            .beginFill(this.get('background-color'))
-            .drawRoundedRect(shadow, shadow, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2, this.get('corners'))
-            .endFill()
-        if (this.resizeable)
+        if (!this.transparent)
         {
-            const size = this.get('resize-border-size')
-            this.windowGraphics
-                .beginFill(this.get('resize-border-color'))
-                .moveTo(this._windowWidth, this._windowHeight - size)
-                .lineTo(this._windowWidth, this._windowHeight)
-                .lineTo(this._windowWidth - size, this._windowHeight)
+            this.windowShadowGraphics
+                .clear()
+                .beginFill(0, this.get('shadow-alpha'))
+                .drawRoundedRect(0, 0, this._windowWidth, this._windowHeight, this.get('corners'))
                 .endFill()
+            this.windowGraphics
+                .clear()
+                .beginFill(this.get('background-color'))
+                .drawRoundedRect(shadow, shadow, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2, this.get('corners'))
+                .endFill()
+            if (this.resizeable)
+            {
+                const size = this.get('resize-border-size')
+                this.resizeGraphics
+                    .clear()
+                    .beginFill(this.get('resize-border-color'))
+                    .moveTo(this._windowWidth, this._windowHeight - size)
+                    .lineTo(this._windowWidth, this._windowHeight)
+                    .lineTo(this._windowWidth - size, this._windowHeight)
+                    .endFill()
+            }
+            if (this.overflow)
+            {
+                this.drawOverflow()
+            }
         }
         const spacing = this.get('spacing')
-        this.content.mask
+        this.contentContainer.mask
             .clear()
             .beginFill(0xffffff)
             .drawRect(0, 0, this._windowWidth - spacing * 2, this._windowHeight - spacing * 2)
             .endFill()
-        this.content.position.set(spacing, spacing)
+        this.contentContainer.position.set(spacing, spacing)
         this.dirty = true
     }
 
-    down(e)
+    drawOverflow()
     {
-        const point = e.data.global
+        this.scrollGraphics.clear()
+        if (this.viewport)
+        {
+            const spacing = this.get('spacing')
+            const scrollSpace = this.get('scrollbar-spacing')
+            if (this.overflow !== 'x')
+            {
+                const percent = this.viewport.worldScreenHeight / this.content.height
+                if (percent < 1)
+                {
+                    const innerHeight = this._windowHeight - spacing * 2
+                    let start = (this.content.y / this.content.height) * -this.bottom
+                    const height = percent * innerHeight
+                    start = start < 0 ? 0 : start
+                    start = start > innerHeight - height ? innerHeight - height : start
+                    this.scrollGraphics
+                        .beginFill(this.get('scrollbar-background-color'))
+                        .drawRect(this._windowWidth - spacing + scrollSpace, spacing, spacing - scrollSpace * 2, innerHeight)
+                        .endFill()
+                        .beginFill(this.get('scrollbar-foreground-color'))
+                        .drawRect(this._windowWidth - spacing + scrollSpace, spacing + start, spacing - scrollSpace * 2, height)
+                        .endFill()
+                }
+            }
+            if (this.overflow !== 'y')
+            {
+                const percent = this.viewport.worldScreenWidth / this.content.width
+                if (percent < 1)
+                {
+                    const innerWidth = this._windowWidth - spacing * 2
+                    let start = (this.content.x / this.content.width) * -this.right
+                    const width = percent * innerWidth
+                    start = start < 0 ? 0 : start
+                    start = start > innerWidth - width ? innerWidth - width : start
+                    this.scrollGraphics
+                        .beginFill(this.get('scrollbar-background-color'))
+                        .drawRect(spacing, this._windowHeight - spacing + scrollSpace, innerWidth, spacing - scrollSpace * 2)
+                        .endFill()
+                        .beginFill(this.get('scrollbar-foreground-color'))
+                        .drawRect(spacing + start, this._windowHeight - spacing + scrollSpace, width, spacing - scrollSpace * 2)
+                        .endFill()
+                }
+            }
+        }
+    }
+
+    down(x, y, data)
+    {
+        const point = { x, y }
+        this.parent.addChild(this)
         if (this.resizeable)
         {
             const size = this.get('resize-border-size')
             const local = super.toLocal(point)
-            if (pointInTriangle([local.x, local.y], [[this._windowWidth, this._windowHeight - size], [this._windowWidth, this.y + this._windowHeight], [this._windowWidth - size, this._windowHeight]]))
+            if (pointInTriangle([local.x, local.y], [[this._windowWidth, this._windowHeight - size], [this._windowWidth, this._windowHeight], [this._windowWidth - size, this._windowHeight]]))
             {
                 this.isDown = { x: point.x, y: point.y }
                 this.resizing = { width: this._windowWidth, height: this._windowHeight }
-                e.stopPropagation
-                return
+                return true
             }
-            this.parent.addChild(this)
         }
+
+        if (this.viewport)
+        {
+            const spacing = this.get('spacing')
+            if (point.x >= this.x + spacing && point.y >= this.y + spacing && point.x <= this.x + this.width - spacing * 2 && point.y <= this.y + this.height - spacing * 2)
+            {
+                if (this.viewport.down(x, y, data))
+                {
+                    return true
+                }
+            }
+        }
+
         if (this.draggable)
         {
             this.isDown = { x: this.x - point.x, y: this.y - point.y }
-            this.parent.addChild(this)
-            e.stopPropagation()
+            return true
         }
     }
 
-    move(e)
+    move(x, y, data)
     {
         if (this.oldCursor !== null)
         {
-            this.cursor = this.oldCursor
+            this.changeCursor = this.oldCursor
             this.oldCursor = null
         }
-        if (this.cursor)
+        if (this.changeCursor)
         {
-            document.body.style.cursor = this.cursor
+            document.body.style.cursor = this.changeCursor
         }
         if (this.resizing && this.isDown)
         {
             const minWidth = this.get('minimum-width')
             const minHeight = this.get('minimum-height')
-            this._windowWidth = this.resizing.width + e.data.global.x - this.isDown.x
+            this._windowWidth = this.resizing.width + x - this.isDown.x
             this._windowWidth = this._windowWidth < minWidth ? minWidth : this._windowWidth
-            this._windowHeight = this.resizing.height + e.data.global.y - this.isDown.y
+            if (this.maxWidth)
+            {
+                this._windowWidth = this._windowWidth > this.maxWidth ? this.maxWidth : this._windowWidth
+            }
+            this._windowHeight = this.resizing.height + y - this.isDown.y
             this._windowHeight = this._windowHeight < minHeight ? minHeight : this._windowHeight
+            if (this.maxHeight)
+            {
+                this._windowHeight = this._windowHeight > this.maxHeight ? this.maxHeight : this._windowHeight
+            }
+            if (this.noOversizeX || this.noOversizeY)
+            {
+                const spacing = this.get('spacing') * 2
+                this._wbs = { x: 0, y: 0 }
+                this.getSize()
+                if (this.noOversizeX)
+                {
+                    this._windowWidth = this._windowWidth > this._wbs.x + spacing ? this._wbs.x + spacing : this._windowWidth
+                }
+                if (this.noOversizeY)
+                {
+                    this._windowHeight = this._windowHeight > this._wbs.y + spacing ? this._wbs.y + spacing : this._windowHeight
+                }
+            }
+
             this.layout()
             this.emit('resizing', this)
-            e.stopPropagation()
+            return true
         }
         else if (this.draggable && this.isDown)
         {
-            this.x = e.data.global.x + this.isDown.x
-            this.y = e.data.global.y + this.isDown.y
+            this.x = x + this.isDown.x
+            this.y = y + this.isDown.y
             this.dirty = true
-            e.stopPropagation()
+            return true
+        }
+        else if (this.viewport && this.viewport.move(x, y, data))
+        {
+            this.dirty = true
+            return true
         }
         else if (this.draggable)
         {
-            const point = e.data.global
+            const point = { x, y }
             const size = this.get('resize-border-size')
             const local = super.toLocal(point)
-            if (pointInTriangle([local.x, local.y], [[this._windowWidth, this._windowHeight - size], [this._windowWidth, this.y + this._windowHeight], [this._windowWidth - size, this._windowHeight]]))
+            if (pointInTriangle([local.x, local.y], [[this._windowWidth, this._windowHeight - size], [this._windowWidth, this._windowHeight], [this._windowWidth - size, this._windowHeight]]))
             {
-                this.oldCursor = this.cursor
-                this.cursor = 'se-resize'
+                this.oldCursor = this.changeCursor
+                this.changeCursor = 'se-resize'
             }
         }
     }
 
-    up()
+    up(x, y, data)
     {
+        if (this.viewport)
+        {
+            this.viewport.up(x, y, data)
+        }
         if (this.resizing)
         {
             this.resizing = false
             this.isDown = false
-            this.dirtyRenderer = true
             this.emit('resize-end')
+            return true
         }
         if (this.draggable && this.isDown)
         {
             this.isDown = false
-            this.dirtyRenderer = true
             this.emit('drag-end')
+            return true
+        }
+    }
+
+    wheel(dx, dy, dz, data)
+    {
+        if (this.viewport)
+        {
+            return this.viewport.handleWheel(dx, dy, dz, data)
         }
     }
 
@@ -62935,21 +68098,91 @@ module.exports = class Window extends PIXI.Container
         sizes.y = (y + height > sizes.y) ? y + height : sizes.y
     }
 
+    getUIParent()
+    {
+        let parent = this.parent
+        while (parent && !parent.types)
+        {
+            parent = parent.parent
+        }
+        return parent
+    }
+
     layout()
     {
-        if (this.fit)
+        const spacing = this.get('spacing') * 2
+        if (this.fit || this.fitX || this.fitY)
         {
-            const spacing = this.get('spacing')
             this._wbs = { x: 0, y: 0 }
             this.getSize()
-            if (!this.noFitX)
+            if (this.fitX || !this.noFitX)
             {
                 this._windowWidth = this._wbs.x + spacing
             }
-            if (!this.noFitY)
+            if (this.fitY || !this.noFitY)
             {
                 this._windowHeight = this._wbs.y + spacing
             }
+        }
+        if (this.place && this.parent)
+        {
+            const parent = this.getUIParent()
+            if (parent)
+            {
+                if (this.place.indexOf('top') !== -1)
+                {
+                    this.y = 0
+                }
+                else if (this.place.indexOf('bottom') !== -1)
+                {
+                    this.y = parent.bottom - this.height
+                }
+                else
+                {
+                    this.y = parent.center.y - this.height / 2
+                }
+                if (this.place.indexOf('left') !== -1)
+                {
+                    this.x = 0
+                }
+                else if (this.place.indexOf('right') !== -1)
+                {
+                    this.x = parent.right - this.width
+                }
+                else
+                {
+                    this.x = parent.center.x - this.width / 2
+                }
+            }
+        }
+        for (let w of this.content.children)
+        {
+            if (w.types)
+            {
+                w.layout()
+            }
+        }
+        if (this.overflow)
+        {
+            if (this.content.width > this._windowWidth - spacing || this.content.height > this._windowHeight - spacing)
+            {
+                this.viewport = new Viewport(this.content, { screenWidth: this._windowWidth - spacing, screenHeight: this._windowHeight - spacing, worldWidth: this.content.width, worldHeight: this.content.height, noListeners: true })
+                this.viewport
+                    .drag({ clampWheel: true, underflow: 'top-left' })
+                    .decelerate()
+                    .bounce({ time: 100, sides: 'vertical', underflow: 'left' })
+                    .clamp({ direction: 'x', underflow: 'left' })
+            }
+            else
+            {
+                this.viewport = null
+                this.content.position.set(0)
+            }
+        }
+        else
+        {
+            this.viewport = null
+            this.content.position.set(0)
         }
         this.drawWindowShape()
     }
@@ -62973,6 +68206,46 @@ module.exports = class Window extends PIXI.Container
         this.position.set(window.innerWidth / 2 - this.width / 2, window.innerHeight / 2 - this.height / 2)
     }
 
+    update(elapsed)
+    {
+        if (this.viewport)
+        {
+            this.viewport.update(elapsed)
+            if (this.viewport.dirty)
+            {
+                this.drawOverflow()
+                this.dirty = true
+                this.viewport.dirty = false
+            }
+        }
+    }
+
+    containsPoint(point)
+    {
+        return this.windowGraphics.containsPoint(point)
+    }
+
+    isFocused()
+    {
+        if (this.focused)
+        {
+            return true
+        }
+        for (let child of this.content.children)
+        {
+            if (child.types)
+            {
+                if (child.isFocused())
+                {
+                    return true
+                }
+            }
+        }
+    }
+
+    keydown() {}
+    keyup() {}
+
     addChild() { return this.content.addChild(...arguments) }
     addChildAt() { return this.content.addChild(...arguments) }
     removeChildren() { return this.content.removeChildren(...arguments) }
@@ -62985,4 +68258,1888 @@ module.exports = class Window extends PIXI.Container
     getChild() { return this.content.getChild(...arguments) }
     getChildAt() { return this.content.getChildAt(...arguments) }
 }
-},{"./theme.json":394,"exists":17,"pixi.js":333,"point-in-triangle":367}]},{},[10]);
+},{"./theme.json":425,"exists":9,"pixi-viewport":222,"pixi.js":351,"point-in-triangle":385}],429:[function(require,module,exports){
+
+},{}],430:[function(require,module,exports){
+(function (process){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// resolves . and .. elements in a path array with directory names there
+// must be no slashes, empty elements, or device names (c:\) in the array
+// (so also no leading and trailing slashes - it does not distinguish
+// relative and absolute paths)
+function normalizeArray(parts, allowAboveRoot) {
+  // if the path tries to go above the root, `up` ends up > 0
+  var up = 0;
+  for (var i = parts.length - 1; i >= 0; i--) {
+    var last = parts[i];
+    if (last === '.') {
+      parts.splice(i, 1);
+    } else if (last === '..') {
+      parts.splice(i, 1);
+      up++;
+    } else if (up) {
+      parts.splice(i, 1);
+      up--;
+    }
+  }
+
+  // if the path is allowed to go above the root, restore leading ..s
+  if (allowAboveRoot) {
+    for (; up--; up) {
+      parts.unshift('..');
+    }
+  }
+
+  return parts;
+}
+
+// Split a filename into [root, dir, basename, ext], unix version
+// 'root' is just a slash, or nothing.
+var splitPathRe =
+    /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
+var splitPath = function(filename) {
+  return splitPathRe.exec(filename).slice(1);
+};
+
+// path.resolve([from ...], to)
+// posix version
+exports.resolve = function() {
+  var resolvedPath = '',
+      resolvedAbsolute = false;
+
+  for (var i = arguments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
+    var path = (i >= 0) ? arguments[i] : process.cwd();
+
+    // Skip empty and invalid entries
+    if (typeof path !== 'string') {
+      throw new TypeError('Arguments to path.resolve must be strings');
+    } else if (!path) {
+      continue;
+    }
+
+    resolvedPath = path + '/' + resolvedPath;
+    resolvedAbsolute = path.charAt(0) === '/';
+  }
+
+  // At this point the path should be resolved to a full absolute path, but
+  // handle relative paths to be safe (might happen when process.cwd() fails)
+
+  // Normalize the path
+  resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
+    return !!p;
+  }), !resolvedAbsolute).join('/');
+
+  return ((resolvedAbsolute ? '/' : '') + resolvedPath) || '.';
+};
+
+// path.normalize(path)
+// posix version
+exports.normalize = function(path) {
+  var isAbsolute = exports.isAbsolute(path),
+      trailingSlash = substr(path, -1) === '/';
+
+  // Normalize the path
+  path = normalizeArray(filter(path.split('/'), function(p) {
+    return !!p;
+  }), !isAbsolute).join('/');
+
+  if (!path && !isAbsolute) {
+    path = '.';
+  }
+  if (path && trailingSlash) {
+    path += '/';
+  }
+
+  return (isAbsolute ? '/' : '') + path;
+};
+
+// posix version
+exports.isAbsolute = function(path) {
+  return path.charAt(0) === '/';
+};
+
+// posix version
+exports.join = function() {
+  var paths = Array.prototype.slice.call(arguments, 0);
+  return exports.normalize(filter(paths, function(p, index) {
+    if (typeof p !== 'string') {
+      throw new TypeError('Arguments to path.join must be strings');
+    }
+    return p;
+  }).join('/'));
+};
+
+
+// path.relative(from, to)
+// posix version
+exports.relative = function(from, to) {
+  from = exports.resolve(from).substr(1);
+  to = exports.resolve(to).substr(1);
+
+  function trim(arr) {
+    var start = 0;
+    for (; start < arr.length; start++) {
+      if (arr[start] !== '') break;
+    }
+
+    var end = arr.length - 1;
+    for (; end >= 0; end--) {
+      if (arr[end] !== '') break;
+    }
+
+    if (start > end) return [];
+    return arr.slice(start, end - start + 1);
+  }
+
+  var fromParts = trim(from.split('/'));
+  var toParts = trim(to.split('/'));
+
+  var length = Math.min(fromParts.length, toParts.length);
+  var samePartsLength = length;
+  for (var i = 0; i < length; i++) {
+    if (fromParts[i] !== toParts[i]) {
+      samePartsLength = i;
+      break;
+    }
+  }
+
+  var outputParts = [];
+  for (var i = samePartsLength; i < fromParts.length; i++) {
+    outputParts.push('..');
+  }
+
+  outputParts = outputParts.concat(toParts.slice(samePartsLength));
+
+  return outputParts.join('/');
+};
+
+exports.sep = '/';
+exports.delimiter = ':';
+
+exports.dirname = function(path) {
+  var result = splitPath(path),
+      root = result[0],
+      dir = result[1];
+
+  if (!root && !dir) {
+    // No dirname whatsoever
+    return '.';
+  }
+
+  if (dir) {
+    // It has a dirname, strip trailing slash
+    dir = dir.substr(0, dir.length - 1);
+  }
+
+  return root + dir;
+};
+
+
+exports.basename = function(path, ext) {
+  var f = splitPath(path)[2];
+  // TODO: make this comparison case-insensitive on windows?
+  if (ext && f.substr(-1 * ext.length) === ext) {
+    f = f.substr(0, f.length - ext.length);
+  }
+  return f;
+};
+
+
+exports.extname = function(path) {
+  return splitPath(path)[3];
+};
+
+function filter (xs, f) {
+    if (xs.filter) return xs.filter(f);
+    var res = [];
+    for (var i = 0; i < xs.length; i++) {
+        if (f(xs[i], i, xs)) res.push(xs[i]);
+    }
+    return res;
+}
+
+// String.prototype.substr - negative index don't work in IE8
+var substr = 'ab'.substr(-1) === 'b'
+    ? function (str, start, len) { return str.substr(start, len) }
+    : function (str, start, len) {
+        if (start < 0) start = str.length + start;
+        return str.substr(start, len);
+    }
+;
+
+}).call(this,require('_process'))
+},{"_process":431}],431:[function(require,module,exports){
+// shim for using process in browser
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
+
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) { return [] }
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],432:[function(require,module,exports){
+(function (global){
+/*! https://mths.be/punycode v1.4.1 by @mathias */
+;(function(root) {
+
+	/** Detect free variables */
+	var freeExports = typeof exports == 'object' && exports &&
+		!exports.nodeType && exports;
+	var freeModule = typeof module == 'object' && module &&
+		!module.nodeType && module;
+	var freeGlobal = typeof global == 'object' && global;
+	if (
+		freeGlobal.global === freeGlobal ||
+		freeGlobal.window === freeGlobal ||
+		freeGlobal.self === freeGlobal
+	) {
+		root = freeGlobal;
+	}
+
+	/**
+	 * The `punycode` object.
+	 * @name punycode
+	 * @type Object
+	 */
+	var punycode,
+
+	/** Highest positive signed 32-bit float value */
+	maxInt = 2147483647, // aka. 0x7FFFFFFF or 2^31-1
+
+	/** Bootstring parameters */
+	base = 36,
+	tMin = 1,
+	tMax = 26,
+	skew = 38,
+	damp = 700,
+	initialBias = 72,
+	initialN = 128, // 0x80
+	delimiter = '-', // '\x2D'
+
+	/** Regular expressions */
+	regexPunycode = /^xn--/,
+	regexNonASCII = /[^\x20-\x7E]/, // unprintable ASCII chars + non-ASCII chars
+	regexSeparators = /[\x2E\u3002\uFF0E\uFF61]/g, // RFC 3490 separators
+
+	/** Error messages */
+	errors = {
+		'overflow': 'Overflow: input needs wider integers to process',
+		'not-basic': 'Illegal input >= 0x80 (not a basic code point)',
+		'invalid-input': 'Invalid input'
+	},
+
+	/** Convenience shortcuts */
+	baseMinusTMin = base - tMin,
+	floor = Math.floor,
+	stringFromCharCode = String.fromCharCode,
+
+	/** Temporary variable */
+	key;
+
+	/*--------------------------------------------------------------------------*/
+
+	/**
+	 * A generic error utility function.
+	 * @private
+	 * @param {String} type The error type.
+	 * @returns {Error} Throws a `RangeError` with the applicable error message.
+	 */
+	function error(type) {
+		throw new RangeError(errors[type]);
+	}
+
+	/**
+	 * A generic `Array#map` utility function.
+	 * @private
+	 * @param {Array} array The array to iterate over.
+	 * @param {Function} callback The function that gets called for every array
+	 * item.
+	 * @returns {Array} A new array of values returned by the callback function.
+	 */
+	function map(array, fn) {
+		var length = array.length;
+		var result = [];
+		while (length--) {
+			result[length] = fn(array[length]);
+		}
+		return result;
+	}
+
+	/**
+	 * A simple `Array#map`-like wrapper to work with domain name strings or email
+	 * addresses.
+	 * @private
+	 * @param {String} domain The domain name or email address.
+	 * @param {Function} callback The function that gets called for every
+	 * character.
+	 * @returns {Array} A new string of characters returned by the callback
+	 * function.
+	 */
+	function mapDomain(string, fn) {
+		var parts = string.split('@');
+		var result = '';
+		if (parts.length > 1) {
+			// In email addresses, only the domain name should be punycoded. Leave
+			// the local part (i.e. everything up to `@`) intact.
+			result = parts[0] + '@';
+			string = parts[1];
+		}
+		// Avoid `split(regex)` for IE8 compatibility. See #17.
+		string = string.replace(regexSeparators, '\x2E');
+		var labels = string.split('.');
+		var encoded = map(labels, fn).join('.');
+		return result + encoded;
+	}
+
+	/**
+	 * Creates an array containing the numeric code points of each Unicode
+	 * character in the string. While JavaScript uses UCS-2 internally,
+	 * this function will convert a pair of surrogate halves (each of which
+	 * UCS-2 exposes as separate characters) into a single code point,
+	 * matching UTF-16.
+	 * @see `punycode.ucs2.encode`
+	 * @see <https://mathiasbynens.be/notes/javascript-encoding>
+	 * @memberOf punycode.ucs2
+	 * @name decode
+	 * @param {String} string The Unicode input string (UCS-2).
+	 * @returns {Array} The new array of code points.
+	 */
+	function ucs2decode(string) {
+		var output = [],
+		    counter = 0,
+		    length = string.length,
+		    value,
+		    extra;
+		while (counter < length) {
+			value = string.charCodeAt(counter++);
+			if (value >= 0xD800 && value <= 0xDBFF && counter < length) {
+				// high surrogate, and there is a next character
+				extra = string.charCodeAt(counter++);
+				if ((extra & 0xFC00) == 0xDC00) { // low surrogate
+					output.push(((value & 0x3FF) << 10) + (extra & 0x3FF) + 0x10000);
+				} else {
+					// unmatched surrogate; only append this code unit, in case the next
+					// code unit is the high surrogate of a surrogate pair
+					output.push(value);
+					counter--;
+				}
+			} else {
+				output.push(value);
+			}
+		}
+		return output;
+	}
+
+	/**
+	 * Creates a string based on an array of numeric code points.
+	 * @see `punycode.ucs2.decode`
+	 * @memberOf punycode.ucs2
+	 * @name encode
+	 * @param {Array} codePoints The array of numeric code points.
+	 * @returns {String} The new Unicode string (UCS-2).
+	 */
+	function ucs2encode(array) {
+		return map(array, function(value) {
+			var output = '';
+			if (value > 0xFFFF) {
+				value -= 0x10000;
+				output += stringFromCharCode(value >>> 10 & 0x3FF | 0xD800);
+				value = 0xDC00 | value & 0x3FF;
+			}
+			output += stringFromCharCode(value);
+			return output;
+		}).join('');
+	}
+
+	/**
+	 * Converts a basic code point into a digit/integer.
+	 * @see `digitToBasic()`
+	 * @private
+	 * @param {Number} codePoint The basic numeric code point value.
+	 * @returns {Number} The numeric value of a basic code point (for use in
+	 * representing integers) in the range `0` to `base - 1`, or `base` if
+	 * the code point does not represent a value.
+	 */
+	function basicToDigit(codePoint) {
+		if (codePoint - 48 < 10) {
+			return codePoint - 22;
+		}
+		if (codePoint - 65 < 26) {
+			return codePoint - 65;
+		}
+		if (codePoint - 97 < 26) {
+			return codePoint - 97;
+		}
+		return base;
+	}
+
+	/**
+	 * Converts a digit/integer into a basic code point.
+	 * @see `basicToDigit()`
+	 * @private
+	 * @param {Number} digit The numeric value of a basic code point.
+	 * @returns {Number} The basic code point whose value (when used for
+	 * representing integers) is `digit`, which needs to be in the range
+	 * `0` to `base - 1`. If `flag` is non-zero, the uppercase form is
+	 * used; else, the lowercase form is used. The behavior is undefined
+	 * if `flag` is non-zero and `digit` has no uppercase form.
+	 */
+	function digitToBasic(digit, flag) {
+		//  0..25 map to ASCII a..z or A..Z
+		// 26..35 map to ASCII 0..9
+		return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
+	}
+
+	/**
+	 * Bias adaptation function as per section 3.4 of RFC 3492.
+	 * https://tools.ietf.org/html/rfc3492#section-3.4
+	 * @private
+	 */
+	function adapt(delta, numPoints, firstTime) {
+		var k = 0;
+		delta = firstTime ? floor(delta / damp) : delta >> 1;
+		delta += floor(delta / numPoints);
+		for (/* no initialization */; delta > baseMinusTMin * tMax >> 1; k += base) {
+			delta = floor(delta / baseMinusTMin);
+		}
+		return floor(k + (baseMinusTMin + 1) * delta / (delta + skew));
+	}
+
+	/**
+	 * Converts a Punycode string of ASCII-only symbols to a string of Unicode
+	 * symbols.
+	 * @memberOf punycode
+	 * @param {String} input The Punycode string of ASCII-only symbols.
+	 * @returns {String} The resulting string of Unicode symbols.
+	 */
+	function decode(input) {
+		// Don't use UCS-2
+		var output = [],
+		    inputLength = input.length,
+		    out,
+		    i = 0,
+		    n = initialN,
+		    bias = initialBias,
+		    basic,
+		    j,
+		    index,
+		    oldi,
+		    w,
+		    k,
+		    digit,
+		    t,
+		    /** Cached calculation results */
+		    baseMinusT;
+
+		// Handle the basic code points: let `basic` be the number of input code
+		// points before the last delimiter, or `0` if there is none, then copy
+		// the first basic code points to the output.
+
+		basic = input.lastIndexOf(delimiter);
+		if (basic < 0) {
+			basic = 0;
+		}
+
+		for (j = 0; j < basic; ++j) {
+			// if it's not a basic code point
+			if (input.charCodeAt(j) >= 0x80) {
+				error('not-basic');
+			}
+			output.push(input.charCodeAt(j));
+		}
+
+		// Main decoding loop: start just after the last delimiter if any basic code
+		// points were copied; start at the beginning otherwise.
+
+		for (index = basic > 0 ? basic + 1 : 0; index < inputLength; /* no final expression */) {
+
+			// `index` is the index of the next character to be consumed.
+			// Decode a generalized variable-length integer into `delta`,
+			// which gets added to `i`. The overflow checking is easier
+			// if we increase `i` as we go, then subtract off its starting
+			// value at the end to obtain `delta`.
+			for (oldi = i, w = 1, k = base; /* no condition */; k += base) {
+
+				if (index >= inputLength) {
+					error('invalid-input');
+				}
+
+				digit = basicToDigit(input.charCodeAt(index++));
+
+				if (digit >= base || digit > floor((maxInt - i) / w)) {
+					error('overflow');
+				}
+
+				i += digit * w;
+				t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
+
+				if (digit < t) {
+					break;
+				}
+
+				baseMinusT = base - t;
+				if (w > floor(maxInt / baseMinusT)) {
+					error('overflow');
+				}
+
+				w *= baseMinusT;
+
+			}
+
+			out = output.length + 1;
+			bias = adapt(i - oldi, out, oldi == 0);
+
+			// `i` was supposed to wrap around from `out` to `0`,
+			// incrementing `n` each time, so we'll fix that now:
+			if (floor(i / out) > maxInt - n) {
+				error('overflow');
+			}
+
+			n += floor(i / out);
+			i %= out;
+
+			// Insert `n` at position `i` of the output
+			output.splice(i++, 0, n);
+
+		}
+
+		return ucs2encode(output);
+	}
+
+	/**
+	 * Converts a string of Unicode symbols (e.g. a domain name label) to a
+	 * Punycode string of ASCII-only symbols.
+	 * @memberOf punycode
+	 * @param {String} input The string of Unicode symbols.
+	 * @returns {String} The resulting Punycode string of ASCII-only symbols.
+	 */
+	function encode(input) {
+		var n,
+		    delta,
+		    handledCPCount,
+		    basicLength,
+		    bias,
+		    j,
+		    m,
+		    q,
+		    k,
+		    t,
+		    currentValue,
+		    output = [],
+		    /** `inputLength` will hold the number of code points in `input`. */
+		    inputLength,
+		    /** Cached calculation results */
+		    handledCPCountPlusOne,
+		    baseMinusT,
+		    qMinusT;
+
+		// Convert the input in UCS-2 to Unicode
+		input = ucs2decode(input);
+
+		// Cache the length
+		inputLength = input.length;
+
+		// Initialize the state
+		n = initialN;
+		delta = 0;
+		bias = initialBias;
+
+		// Handle the basic code points
+		for (j = 0; j < inputLength; ++j) {
+			currentValue = input[j];
+			if (currentValue < 0x80) {
+				output.push(stringFromCharCode(currentValue));
+			}
+		}
+
+		handledCPCount = basicLength = output.length;
+
+		// `handledCPCount` is the number of code points that have been handled;
+		// `basicLength` is the number of basic code points.
+
+		// Finish the basic string - if it is not empty - with a delimiter
+		if (basicLength) {
+			output.push(delimiter);
+		}
+
+		// Main encoding loop:
+		while (handledCPCount < inputLength) {
+
+			// All non-basic code points < n have been handled already. Find the next
+			// larger one:
+			for (m = maxInt, j = 0; j < inputLength; ++j) {
+				currentValue = input[j];
+				if (currentValue >= n && currentValue < m) {
+					m = currentValue;
+				}
+			}
+
+			// Increase `delta` enough to advance the decoder's <n,i> state to <m,0>,
+			// but guard against overflow
+			handledCPCountPlusOne = handledCPCount + 1;
+			if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
+				error('overflow');
+			}
+
+			delta += (m - n) * handledCPCountPlusOne;
+			n = m;
+
+			for (j = 0; j < inputLength; ++j) {
+				currentValue = input[j];
+
+				if (currentValue < n && ++delta > maxInt) {
+					error('overflow');
+				}
+
+				if (currentValue == n) {
+					// Represent delta as a generalized variable-length integer
+					for (q = delta, k = base; /* no condition */; k += base) {
+						t = k <= bias ? tMin : (k >= bias + tMax ? tMax : k - bias);
+						if (q < t) {
+							break;
+						}
+						qMinusT = q - t;
+						baseMinusT = base - t;
+						output.push(
+							stringFromCharCode(digitToBasic(t + qMinusT % baseMinusT, 0))
+						);
+						q = floor(qMinusT / baseMinusT);
+					}
+
+					output.push(stringFromCharCode(digitToBasic(q, 0)));
+					bias = adapt(delta, handledCPCountPlusOne, handledCPCount == basicLength);
+					delta = 0;
+					++handledCPCount;
+				}
+			}
+
+			++delta;
+			++n;
+
+		}
+		return output.join('');
+	}
+
+	/**
+	 * Converts a Punycode string representing a domain name or an email address
+	 * to Unicode. Only the Punycoded parts of the input will be converted, i.e.
+	 * it doesn't matter if you call it on a string that has already been
+	 * converted to Unicode.
+	 * @memberOf punycode
+	 * @param {String} input The Punycoded domain name or email address to
+	 * convert to Unicode.
+	 * @returns {String} The Unicode representation of the given Punycode
+	 * string.
+	 */
+	function toUnicode(input) {
+		return mapDomain(input, function(string) {
+			return regexPunycode.test(string)
+				? decode(string.slice(4).toLowerCase())
+				: string;
+		});
+	}
+
+	/**
+	 * Converts a Unicode string representing a domain name or an email address to
+	 * Punycode. Only the non-ASCII parts of the domain name will be converted,
+	 * i.e. it doesn't matter if you call it with a domain that's already in
+	 * ASCII.
+	 * @memberOf punycode
+	 * @param {String} input The domain name or email address to convert, as a
+	 * Unicode string.
+	 * @returns {String} The Punycode representation of the given domain name or
+	 * email address.
+	 */
+	function toASCII(input) {
+		return mapDomain(input, function(string) {
+			return regexNonASCII.test(string)
+				? 'xn--' + encode(string)
+				: string;
+		});
+	}
+
+	/*--------------------------------------------------------------------------*/
+
+	/** Define the public API */
+	punycode = {
+		/**
+		 * A string representing the current Punycode.js version number.
+		 * @memberOf punycode
+		 * @type String
+		 */
+		'version': '1.4.1',
+		/**
+		 * An object of methods to convert from JavaScript's internal character
+		 * representation (UCS-2) to Unicode code points, and back.
+		 * @see <https://mathiasbynens.be/notes/javascript-encoding>
+		 * @memberOf punycode
+		 * @type Object
+		 */
+		'ucs2': {
+			'decode': ucs2decode,
+			'encode': ucs2encode
+		},
+		'decode': decode,
+		'encode': encode,
+		'toASCII': toASCII,
+		'toUnicode': toUnicode
+	};
+
+	/** Expose `punycode` */
+	// Some AMD build optimizers, like r.js, check for specific condition patterns
+	// like the following:
+	if (
+		typeof define == 'function' &&
+		typeof define.amd == 'object' &&
+		define.amd
+	) {
+		define('punycode', function() {
+			return punycode;
+		});
+	} else if (freeExports && freeModule) {
+		if (module.exports == freeExports) {
+			// in Node.js, io.js, or RingoJS v0.8.0+
+			freeModule.exports = punycode;
+		} else {
+			// in Narwhal or RingoJS v0.7.0-
+			for (key in punycode) {
+				punycode.hasOwnProperty(key) && (freeExports[key] = punycode[key]);
+			}
+		}
+	} else {
+		// in Rhino or a web browser
+		root.punycode = punycode;
+	}
+
+}(this));
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],433:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+'use strict';
+
+// If obj.hasOwnProperty has been overridden, then calling
+// obj.hasOwnProperty(prop) will break.
+// See: https://github.com/joyent/node/issues/1707
+function hasOwnProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+module.exports = function(qs, sep, eq, options) {
+  sep = sep || '&';
+  eq = eq || '=';
+  var obj = {};
+
+  if (typeof qs !== 'string' || qs.length === 0) {
+    return obj;
+  }
+
+  var regexp = /\+/g;
+  qs = qs.split(sep);
+
+  var maxKeys = 1000;
+  if (options && typeof options.maxKeys === 'number') {
+    maxKeys = options.maxKeys;
+  }
+
+  var len = qs.length;
+  // maxKeys <= 0 means that we should not limit keys count
+  if (maxKeys > 0 && len > maxKeys) {
+    len = maxKeys;
+  }
+
+  for (var i = 0; i < len; ++i) {
+    var x = qs[i].replace(regexp, '%20'),
+        idx = x.indexOf(eq),
+        kstr, vstr, k, v;
+
+    if (idx >= 0) {
+      kstr = x.substr(0, idx);
+      vstr = x.substr(idx + 1);
+    } else {
+      kstr = x;
+      vstr = '';
+    }
+
+    k = decodeURIComponent(kstr);
+    v = decodeURIComponent(vstr);
+
+    if (!hasOwnProperty(obj, k)) {
+      obj[k] = v;
+    } else if (isArray(obj[k])) {
+      obj[k].push(v);
+    } else {
+      obj[k] = [obj[k], v];
+    }
+  }
+
+  return obj;
+};
+
+var isArray = Array.isArray || function (xs) {
+  return Object.prototype.toString.call(xs) === '[object Array]';
+};
+
+},{}],434:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+'use strict';
+
+var stringifyPrimitive = function(v) {
+  switch (typeof v) {
+    case 'string':
+      return v;
+
+    case 'boolean':
+      return v ? 'true' : 'false';
+
+    case 'number':
+      return isFinite(v) ? v : '';
+
+    default:
+      return '';
+  }
+};
+
+module.exports = function(obj, sep, eq, name) {
+  sep = sep || '&';
+  eq = eq || '=';
+  if (obj === null) {
+    obj = undefined;
+  }
+
+  if (typeof obj === 'object') {
+    return map(objectKeys(obj), function(k) {
+      var ks = encodeURIComponent(stringifyPrimitive(k)) + eq;
+      if (isArray(obj[k])) {
+        return map(obj[k], function(v) {
+          return ks + encodeURIComponent(stringifyPrimitive(v));
+        }).join(sep);
+      } else {
+        return ks + encodeURIComponent(stringifyPrimitive(obj[k]));
+      }
+    }).join(sep);
+
+  }
+
+  if (!name) return '';
+  return encodeURIComponent(stringifyPrimitive(name)) + eq +
+         encodeURIComponent(stringifyPrimitive(obj));
+};
+
+var isArray = Array.isArray || function (xs) {
+  return Object.prototype.toString.call(xs) === '[object Array]';
+};
+
+function map (xs, f) {
+  if (xs.map) return xs.map(f);
+  var res = [];
+  for (var i = 0; i < xs.length; i++) {
+    res.push(f(xs[i], i));
+  }
+  return res;
+}
+
+var objectKeys = Object.keys || function (obj) {
+  var res = [];
+  for (var key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) res.push(key);
+  }
+  return res;
+};
+
+},{}],435:[function(require,module,exports){
+'use strict';
+
+exports.decode = exports.parse = require('./decode');
+exports.encode = exports.stringify = require('./encode');
+
+},{"./decode":433,"./encode":434}],436:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+'use strict';
+
+var punycode = require('punycode');
+var util = require('./util');
+
+exports.parse = urlParse;
+exports.resolve = urlResolve;
+exports.resolveObject = urlResolveObject;
+exports.format = urlFormat;
+
+exports.Url = Url;
+
+function Url() {
+  this.protocol = null;
+  this.slashes = null;
+  this.auth = null;
+  this.host = null;
+  this.port = null;
+  this.hostname = null;
+  this.hash = null;
+  this.search = null;
+  this.query = null;
+  this.pathname = null;
+  this.path = null;
+  this.href = null;
+}
+
+// Reference: RFC 3986, RFC 1808, RFC 2396
+
+// define these here so at least they only have to be
+// compiled once on the first module load.
+var protocolPattern = /^([a-z0-9.+-]+:)/i,
+    portPattern = /:[0-9]*$/,
+
+    // Special case for a simple path URL
+    simplePathPattern = /^(\/\/?(?!\/)[^\?\s]*)(\?[^\s]*)?$/,
+
+    // RFC 2396: characters reserved for delimiting URLs.
+    // We actually just auto-escape these.
+    delims = ['<', '>', '"', '`', ' ', '\r', '\n', '\t'],
+
+    // RFC 2396: characters not allowed for various reasons.
+    unwise = ['{', '}', '|', '\\', '^', '`'].concat(delims),
+
+    // Allowed by RFCs, but cause of XSS attacks.  Always escape these.
+    autoEscape = ['\''].concat(unwise),
+    // Characters that are never ever allowed in a hostname.
+    // Note that any invalid chars are also handled, but these
+    // are the ones that are *expected* to be seen, so we fast-path
+    // them.
+    nonHostChars = ['%', '/', '?', ';', '#'].concat(autoEscape),
+    hostEndingChars = ['/', '?', '#'],
+    hostnameMaxLen = 255,
+    hostnamePartPattern = /^[+a-z0-9A-Z_-]{0,63}$/,
+    hostnamePartStart = /^([+a-z0-9A-Z_-]{0,63})(.*)$/,
+    // protocols that can allow "unsafe" and "unwise" chars.
+    unsafeProtocol = {
+      'javascript': true,
+      'javascript:': true
+    },
+    // protocols that never have a hostname.
+    hostlessProtocol = {
+      'javascript': true,
+      'javascript:': true
+    },
+    // protocols that always contain a // bit.
+    slashedProtocol = {
+      'http': true,
+      'https': true,
+      'ftp': true,
+      'gopher': true,
+      'file': true,
+      'http:': true,
+      'https:': true,
+      'ftp:': true,
+      'gopher:': true,
+      'file:': true
+    },
+    querystring = require('querystring');
+
+function urlParse(url, parseQueryString, slashesDenoteHost) {
+  if (url && util.isObject(url) && url instanceof Url) return url;
+
+  var u = new Url;
+  u.parse(url, parseQueryString, slashesDenoteHost);
+  return u;
+}
+
+Url.prototype.parse = function(url, parseQueryString, slashesDenoteHost) {
+  if (!util.isString(url)) {
+    throw new TypeError("Parameter 'url' must be a string, not " + typeof url);
+  }
+
+  // Copy chrome, IE, opera backslash-handling behavior.
+  // Back slashes before the query string get converted to forward slashes
+  // See: https://code.google.com/p/chromium/issues/detail?id=25916
+  var queryIndex = url.indexOf('?'),
+      splitter =
+          (queryIndex !== -1 && queryIndex < url.indexOf('#')) ? '?' : '#',
+      uSplit = url.split(splitter),
+      slashRegex = /\\/g;
+  uSplit[0] = uSplit[0].replace(slashRegex, '/');
+  url = uSplit.join(splitter);
+
+  var rest = url;
+
+  // trim before proceeding.
+  // This is to support parse stuff like "  http://foo.com  \n"
+  rest = rest.trim();
+
+  if (!slashesDenoteHost && url.split('#').length === 1) {
+    // Try fast path regexp
+    var simplePath = simplePathPattern.exec(rest);
+    if (simplePath) {
+      this.path = rest;
+      this.href = rest;
+      this.pathname = simplePath[1];
+      if (simplePath[2]) {
+        this.search = simplePath[2];
+        if (parseQueryString) {
+          this.query = querystring.parse(this.search.substr(1));
+        } else {
+          this.query = this.search.substr(1);
+        }
+      } else if (parseQueryString) {
+        this.search = '';
+        this.query = {};
+      }
+      return this;
+    }
+  }
+
+  var proto = protocolPattern.exec(rest);
+  if (proto) {
+    proto = proto[0];
+    var lowerProto = proto.toLowerCase();
+    this.protocol = lowerProto;
+    rest = rest.substr(proto.length);
+  }
+
+  // figure out if it's got a host
+  // user@server is *always* interpreted as a hostname, and url
+  // resolution will treat //foo/bar as host=foo,path=bar because that's
+  // how the browser resolves relative URLs.
+  if (slashesDenoteHost || proto || rest.match(/^\/\/[^@\/]+@[^@\/]+/)) {
+    var slashes = rest.substr(0, 2) === '//';
+    if (slashes && !(proto && hostlessProtocol[proto])) {
+      rest = rest.substr(2);
+      this.slashes = true;
+    }
+  }
+
+  if (!hostlessProtocol[proto] &&
+      (slashes || (proto && !slashedProtocol[proto]))) {
+
+    // there's a hostname.
+    // the first instance of /, ?, ;, or # ends the host.
+    //
+    // If there is an @ in the hostname, then non-host chars *are* allowed
+    // to the left of the last @ sign, unless some host-ending character
+    // comes *before* the @-sign.
+    // URLs are obnoxious.
+    //
+    // ex:
+    // http://a@b@c/ => user:a@b host:c
+    // http://a@b?@c => user:a host:c path:/?@c
+
+    // v0.12 TODO(isaacs): This is not quite how Chrome does things.
+    // Review our test case against browsers more comprehensively.
+
+    // find the first instance of any hostEndingChars
+    var hostEnd = -1;
+    for (var i = 0; i < hostEndingChars.length; i++) {
+      var hec = rest.indexOf(hostEndingChars[i]);
+      if (hec !== -1 && (hostEnd === -1 || hec < hostEnd))
+        hostEnd = hec;
+    }
+
+    // at this point, either we have an explicit point where the
+    // auth portion cannot go past, or the last @ char is the decider.
+    var auth, atSign;
+    if (hostEnd === -1) {
+      // atSign can be anywhere.
+      atSign = rest.lastIndexOf('@');
+    } else {
+      // atSign must be in auth portion.
+      // http://a@b/c@d => host:b auth:a path:/c@d
+      atSign = rest.lastIndexOf('@', hostEnd);
+    }
+
+    // Now we have a portion which is definitely the auth.
+    // Pull that off.
+    if (atSign !== -1) {
+      auth = rest.slice(0, atSign);
+      rest = rest.slice(atSign + 1);
+      this.auth = decodeURIComponent(auth);
+    }
+
+    // the host is the remaining to the left of the first non-host char
+    hostEnd = -1;
+    for (var i = 0; i < nonHostChars.length; i++) {
+      var hec = rest.indexOf(nonHostChars[i]);
+      if (hec !== -1 && (hostEnd === -1 || hec < hostEnd))
+        hostEnd = hec;
+    }
+    // if we still have not hit it, then the entire thing is a host.
+    if (hostEnd === -1)
+      hostEnd = rest.length;
+
+    this.host = rest.slice(0, hostEnd);
+    rest = rest.slice(hostEnd);
+
+    // pull out port.
+    this.parseHost();
+
+    // we've indicated that there is a hostname,
+    // so even if it's empty, it has to be present.
+    this.hostname = this.hostname || '';
+
+    // if hostname begins with [ and ends with ]
+    // assume that it's an IPv6 address.
+    var ipv6Hostname = this.hostname[0] === '[' &&
+        this.hostname[this.hostname.length - 1] === ']';
+
+    // validate a little.
+    if (!ipv6Hostname) {
+      var hostparts = this.hostname.split(/\./);
+      for (var i = 0, l = hostparts.length; i < l; i++) {
+        var part = hostparts[i];
+        if (!part) continue;
+        if (!part.match(hostnamePartPattern)) {
+          var newpart = '';
+          for (var j = 0, k = part.length; j < k; j++) {
+            if (part.charCodeAt(j) > 127) {
+              // we replace non-ASCII char with a temporary placeholder
+              // we need this to make sure size of hostname is not
+              // broken by replacing non-ASCII by nothing
+              newpart += 'x';
+            } else {
+              newpart += part[j];
+            }
+          }
+          // we test again with ASCII char only
+          if (!newpart.match(hostnamePartPattern)) {
+            var validParts = hostparts.slice(0, i);
+            var notHost = hostparts.slice(i + 1);
+            var bit = part.match(hostnamePartStart);
+            if (bit) {
+              validParts.push(bit[1]);
+              notHost.unshift(bit[2]);
+            }
+            if (notHost.length) {
+              rest = '/' + notHost.join('.') + rest;
+            }
+            this.hostname = validParts.join('.');
+            break;
+          }
+        }
+      }
+    }
+
+    if (this.hostname.length > hostnameMaxLen) {
+      this.hostname = '';
+    } else {
+      // hostnames are always lower case.
+      this.hostname = this.hostname.toLowerCase();
+    }
+
+    if (!ipv6Hostname) {
+      // IDNA Support: Returns a punycoded representation of "domain".
+      // It only converts parts of the domain name that
+      // have non-ASCII characters, i.e. it doesn't matter if
+      // you call it with a domain that already is ASCII-only.
+      this.hostname = punycode.toASCII(this.hostname);
+    }
+
+    var p = this.port ? ':' + this.port : '';
+    var h = this.hostname || '';
+    this.host = h + p;
+    this.href += this.host;
+
+    // strip [ and ] from the hostname
+    // the host field still retains them, though
+    if (ipv6Hostname) {
+      this.hostname = this.hostname.substr(1, this.hostname.length - 2);
+      if (rest[0] !== '/') {
+        rest = '/' + rest;
+      }
+    }
+  }
+
+  // now rest is set to the post-host stuff.
+  // chop off any delim chars.
+  if (!unsafeProtocol[lowerProto]) {
+
+    // First, make 100% sure that any "autoEscape" chars get
+    // escaped, even if encodeURIComponent doesn't think they
+    // need to be.
+    for (var i = 0, l = autoEscape.length; i < l; i++) {
+      var ae = autoEscape[i];
+      if (rest.indexOf(ae) === -1)
+        continue;
+      var esc = encodeURIComponent(ae);
+      if (esc === ae) {
+        esc = escape(ae);
+      }
+      rest = rest.split(ae).join(esc);
+    }
+  }
+
+
+  // chop off from the tail first.
+  var hash = rest.indexOf('#');
+  if (hash !== -1) {
+    // got a fragment string.
+    this.hash = rest.substr(hash);
+    rest = rest.slice(0, hash);
+  }
+  var qm = rest.indexOf('?');
+  if (qm !== -1) {
+    this.search = rest.substr(qm);
+    this.query = rest.substr(qm + 1);
+    if (parseQueryString) {
+      this.query = querystring.parse(this.query);
+    }
+    rest = rest.slice(0, qm);
+  } else if (parseQueryString) {
+    // no query string, but parseQueryString still requested
+    this.search = '';
+    this.query = {};
+  }
+  if (rest) this.pathname = rest;
+  if (slashedProtocol[lowerProto] &&
+      this.hostname && !this.pathname) {
+    this.pathname = '/';
+  }
+
+  //to support http.request
+  if (this.pathname || this.search) {
+    var p = this.pathname || '';
+    var s = this.search || '';
+    this.path = p + s;
+  }
+
+  // finally, reconstruct the href based on what has been validated.
+  this.href = this.format();
+  return this;
+};
+
+// format a parsed object into a url string
+function urlFormat(obj) {
+  // ensure it's an object, and not a string url.
+  // If it's an obj, this is a no-op.
+  // this way, you can call url_format() on strings
+  // to clean up potentially wonky urls.
+  if (util.isString(obj)) obj = urlParse(obj);
+  if (!(obj instanceof Url)) return Url.prototype.format.call(obj);
+  return obj.format();
+}
+
+Url.prototype.format = function() {
+  var auth = this.auth || '';
+  if (auth) {
+    auth = encodeURIComponent(auth);
+    auth = auth.replace(/%3A/i, ':');
+    auth += '@';
+  }
+
+  var protocol = this.protocol || '',
+      pathname = this.pathname || '',
+      hash = this.hash || '',
+      host = false,
+      query = '';
+
+  if (this.host) {
+    host = auth + this.host;
+  } else if (this.hostname) {
+    host = auth + (this.hostname.indexOf(':') === -1 ?
+        this.hostname :
+        '[' + this.hostname + ']');
+    if (this.port) {
+      host += ':' + this.port;
+    }
+  }
+
+  if (this.query &&
+      util.isObject(this.query) &&
+      Object.keys(this.query).length) {
+    query = querystring.stringify(this.query);
+  }
+
+  var search = this.search || (query && ('?' + query)) || '';
+
+  if (protocol && protocol.substr(-1) !== ':') protocol += ':';
+
+  // only the slashedProtocols get the //.  Not mailto:, xmpp:, etc.
+  // unless they had them to begin with.
+  if (this.slashes ||
+      (!protocol || slashedProtocol[protocol]) && host !== false) {
+    host = '//' + (host || '');
+    if (pathname && pathname.charAt(0) !== '/') pathname = '/' + pathname;
+  } else if (!host) {
+    host = '';
+  }
+
+  if (hash && hash.charAt(0) !== '#') hash = '#' + hash;
+  if (search && search.charAt(0) !== '?') search = '?' + search;
+
+  pathname = pathname.replace(/[?#]/g, function(match) {
+    return encodeURIComponent(match);
+  });
+  search = search.replace('#', '%23');
+
+  return protocol + host + pathname + search + hash;
+};
+
+function urlResolve(source, relative) {
+  return urlParse(source, false, true).resolve(relative);
+}
+
+Url.prototype.resolve = function(relative) {
+  return this.resolveObject(urlParse(relative, false, true)).format();
+};
+
+function urlResolveObject(source, relative) {
+  if (!source) return relative;
+  return urlParse(source, false, true).resolveObject(relative);
+}
+
+Url.prototype.resolveObject = function(relative) {
+  if (util.isString(relative)) {
+    var rel = new Url();
+    rel.parse(relative, false, true);
+    relative = rel;
+  }
+
+  var result = new Url();
+  var tkeys = Object.keys(this);
+  for (var tk = 0; tk < tkeys.length; tk++) {
+    var tkey = tkeys[tk];
+    result[tkey] = this[tkey];
+  }
+
+  // hash is always overridden, no matter what.
+  // even href="" will remove it.
+  result.hash = relative.hash;
+
+  // if the relative url is empty, then there's nothing left to do here.
+  if (relative.href === '') {
+    result.href = result.format();
+    return result;
+  }
+
+  // hrefs like //foo/bar always cut to the protocol.
+  if (relative.slashes && !relative.protocol) {
+    // take everything except the protocol from relative
+    var rkeys = Object.keys(relative);
+    for (var rk = 0; rk < rkeys.length; rk++) {
+      var rkey = rkeys[rk];
+      if (rkey !== 'protocol')
+        result[rkey] = relative[rkey];
+    }
+
+    //urlParse appends trailing / to urls like http://www.example.com
+    if (slashedProtocol[result.protocol] &&
+        result.hostname && !result.pathname) {
+      result.path = result.pathname = '/';
+    }
+
+    result.href = result.format();
+    return result;
+  }
+
+  if (relative.protocol && relative.protocol !== result.protocol) {
+    // if it's a known url protocol, then changing
+    // the protocol does weird things
+    // first, if it's not file:, then we MUST have a host,
+    // and if there was a path
+    // to begin with, then we MUST have a path.
+    // if it is file:, then the host is dropped,
+    // because that's known to be hostless.
+    // anything else is assumed to be absolute.
+    if (!slashedProtocol[relative.protocol]) {
+      var keys = Object.keys(relative);
+      for (var v = 0; v < keys.length; v++) {
+        var k = keys[v];
+        result[k] = relative[k];
+      }
+      result.href = result.format();
+      return result;
+    }
+
+    result.protocol = relative.protocol;
+    if (!relative.host && !hostlessProtocol[relative.protocol]) {
+      var relPath = (relative.pathname || '').split('/');
+      while (relPath.length && !(relative.host = relPath.shift()));
+      if (!relative.host) relative.host = '';
+      if (!relative.hostname) relative.hostname = '';
+      if (relPath[0] !== '') relPath.unshift('');
+      if (relPath.length < 2) relPath.unshift('');
+      result.pathname = relPath.join('/');
+    } else {
+      result.pathname = relative.pathname;
+    }
+    result.search = relative.search;
+    result.query = relative.query;
+    result.host = relative.host || '';
+    result.auth = relative.auth;
+    result.hostname = relative.hostname || relative.host;
+    result.port = relative.port;
+    // to support http.request
+    if (result.pathname || result.search) {
+      var p = result.pathname || '';
+      var s = result.search || '';
+      result.path = p + s;
+    }
+    result.slashes = result.slashes || relative.slashes;
+    result.href = result.format();
+    return result;
+  }
+
+  var isSourceAbs = (result.pathname && result.pathname.charAt(0) === '/'),
+      isRelAbs = (
+          relative.host ||
+          relative.pathname && relative.pathname.charAt(0) === '/'
+      ),
+      mustEndAbs = (isRelAbs || isSourceAbs ||
+                    (result.host && relative.pathname)),
+      removeAllDots = mustEndAbs,
+      srcPath = result.pathname && result.pathname.split('/') || [],
+      relPath = relative.pathname && relative.pathname.split('/') || [],
+      psychotic = result.protocol && !slashedProtocol[result.protocol];
+
+  // if the url is a non-slashed url, then relative
+  // links like ../.. should be able
+  // to crawl up to the hostname, as well.  This is strange.
+  // result.protocol has already been set by now.
+  // Later on, put the first path part into the host field.
+  if (psychotic) {
+    result.hostname = '';
+    result.port = null;
+    if (result.host) {
+      if (srcPath[0] === '') srcPath[0] = result.host;
+      else srcPath.unshift(result.host);
+    }
+    result.host = '';
+    if (relative.protocol) {
+      relative.hostname = null;
+      relative.port = null;
+      if (relative.host) {
+        if (relPath[0] === '') relPath[0] = relative.host;
+        else relPath.unshift(relative.host);
+      }
+      relative.host = null;
+    }
+    mustEndAbs = mustEndAbs && (relPath[0] === '' || srcPath[0] === '');
+  }
+
+  if (isRelAbs) {
+    // it's absolute.
+    result.host = (relative.host || relative.host === '') ?
+                  relative.host : result.host;
+    result.hostname = (relative.hostname || relative.hostname === '') ?
+                      relative.hostname : result.hostname;
+    result.search = relative.search;
+    result.query = relative.query;
+    srcPath = relPath;
+    // fall through to the dot-handling below.
+  } else if (relPath.length) {
+    // it's relative
+    // throw away the existing file, and take the new path instead.
+    if (!srcPath) srcPath = [];
+    srcPath.pop();
+    srcPath = srcPath.concat(relPath);
+    result.search = relative.search;
+    result.query = relative.query;
+  } else if (!util.isNullOrUndefined(relative.search)) {
+    // just pull out the search.
+    // like href='?foo'.
+    // Put this after the other two cases because it simplifies the booleans
+    if (psychotic) {
+      result.hostname = result.host = srcPath.shift();
+      //occationaly the auth can get stuck only in host
+      //this especially happens in cases like
+      //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
+      var authInHost = result.host && result.host.indexOf('@') > 0 ?
+                       result.host.split('@') : false;
+      if (authInHost) {
+        result.auth = authInHost.shift();
+        result.host = result.hostname = authInHost.shift();
+      }
+    }
+    result.search = relative.search;
+    result.query = relative.query;
+    //to support http.request
+    if (!util.isNull(result.pathname) || !util.isNull(result.search)) {
+      result.path = (result.pathname ? result.pathname : '') +
+                    (result.search ? result.search : '');
+    }
+    result.href = result.format();
+    return result;
+  }
+
+  if (!srcPath.length) {
+    // no path at all.  easy.
+    // we've already handled the other stuff above.
+    result.pathname = null;
+    //to support http.request
+    if (result.search) {
+      result.path = '/' + result.search;
+    } else {
+      result.path = null;
+    }
+    result.href = result.format();
+    return result;
+  }
+
+  // if a url ENDs in . or .., then it must get a trailing slash.
+  // however, if it ends in anything else non-slashy,
+  // then it must NOT get a trailing slash.
+  var last = srcPath.slice(-1)[0];
+  var hasTrailingSlash = (
+      (result.host || relative.host || srcPath.length > 1) &&
+      (last === '.' || last === '..') || last === '');
+
+  // strip single dots, resolve double dots to parent dir
+  // if the path tries to go above the root, `up` ends up > 0
+  var up = 0;
+  for (var i = srcPath.length; i >= 0; i--) {
+    last = srcPath[i];
+    if (last === '.') {
+      srcPath.splice(i, 1);
+    } else if (last === '..') {
+      srcPath.splice(i, 1);
+      up++;
+    } else if (up) {
+      srcPath.splice(i, 1);
+      up--;
+    }
+  }
+
+  // if the path is allowed to go above the root, restore leading ..s
+  if (!mustEndAbs && !removeAllDots) {
+    for (; up--; up) {
+      srcPath.unshift('..');
+    }
+  }
+
+  if (mustEndAbs && srcPath[0] !== '' &&
+      (!srcPath[0] || srcPath[0].charAt(0) !== '/')) {
+    srcPath.unshift('');
+  }
+
+  if (hasTrailingSlash && (srcPath.join('/').substr(-1) !== '/')) {
+    srcPath.push('');
+  }
+
+  var isAbsolute = srcPath[0] === '' ||
+      (srcPath[0] && srcPath[0].charAt(0) === '/');
+
+  // put the host back
+  if (psychotic) {
+    result.hostname = result.host = isAbsolute ? '' :
+                                    srcPath.length ? srcPath.shift() : '';
+    //occationaly the auth can get stuck only in host
+    //this especially happens in cases like
+    //url.resolveObject('mailto:local1@domain1', 'local2@domain2')
+    var authInHost = result.host && result.host.indexOf('@') > 0 ?
+                     result.host.split('@') : false;
+    if (authInHost) {
+      result.auth = authInHost.shift();
+      result.host = result.hostname = authInHost.shift();
+    }
+  }
+
+  mustEndAbs = mustEndAbs || (result.host && srcPath.length);
+
+  if (mustEndAbs && !isAbsolute) {
+    srcPath.unshift('');
+  }
+
+  if (!srcPath.length) {
+    result.pathname = null;
+    result.path = null;
+  } else {
+    result.pathname = srcPath.join('/');
+  }
+
+  //to support request.http
+  if (!util.isNull(result.pathname) || !util.isNull(result.search)) {
+    result.path = (result.pathname ? result.pathname : '') +
+                  (result.search ? result.search : '');
+  }
+  result.auth = relative.auth || result.auth;
+  result.slashes = result.slashes || relative.slashes;
+  result.href = result.format();
+  return result;
+};
+
+Url.prototype.parseHost = function() {
+  var host = this.host;
+  var port = portPattern.exec(host);
+  if (port) {
+    port = port[0];
+    if (port !== ':') {
+      this.port = port.substr(1);
+    }
+    host = host.substr(0, host.length - port.length);
+  }
+  if (host) this.hostname = host;
+};
+
+},{"./util":437,"punycode":432,"querystring":435}],437:[function(require,module,exports){
+'use strict';
+
+module.exports = {
+  isString: function(arg) {
+    return typeof(arg) === 'string';
+  },
+  isObject: function(arg) {
+    return typeof(arg) === 'object' && arg !== null;
+  },
+  isNull: function(arg) {
+    return arg === null;
+  },
+  isNullOrUndefined: function(arg) {
+    return arg == null;
+  }
+};
+
+},{}]},{},[1]);

@@ -1,4 +1,6 @@
-## ??? ui
+WIP
+
+## yy-ui
 UI and Windows library build on pixi.js
 
 ## rationale
@@ -9,13 +11,20 @@ https://davidfig.github.io/ui/
 
 ## Installation
 
-TBD
-
-## Simple Usage
-
-TBD
+npm i yy-ui
 
 ## API
+### src/list.js
+```js
+    /**
+     * @param {object} [options]
+     * @param {boolean} [options.many] select many
+     * @emit select (item, List)
+     * @emit unselect (item, List)
+     */
+    constructor(options)
+
+```
 ### src/button.js
 ```js
     /**
@@ -27,6 +36,7 @@ TBD
      * @param {boolean} [options.fit=true]
      */
     constructor(options)
+
 ```
 ### src/dialog.js
 ```js
@@ -38,6 +48,7 @@ TBD
      * @param {number} [options.wrap=window.innerWidth/2]
      */
     constructor(text, options)
+
 ```
 ### src/edit-text.js
 ```js
@@ -57,28 +68,102 @@ TBD
      * @param {boolean} [options.fit=true]
      */
     constructor(text, options)
+
 ```
-### src/scroll.js
+### src/spacer.js
 ```js
     /**
+     * @param {string} text
      * @param {object} [options]
      */
-    constructor(options)
+    constructor(width, height, options)
+
+```
+### src/stack.js
+```js
+    /**
+     * @param {Array} [items] items to add
+     * @param {object} [options]
+     * @param {boolean} [options.horizontal] horizontal instead of vertical
+     * @param {boolean} [options.sameWidth]
+     * @param {boolean} [options.sameHeight]
+     * @param {string} [options.justify=center] left or right (justify in the non-stacked direction)
+     */
+    constructor(items, options)
+
+```
+### src/text.js
+```js
+    /**
+     * @param {string} text
+     * @param {object} [options]
+     * @param {PIXI.TextStyle} [options.textStyle]
+     */
+    constructor(text, options)
+
 ```
 ### src/tree.js
 ```js
     /**
      * @param {object} [options]
+     * @param {boolean} [options.entryMove]
+     * @param {boolean} [options.noFolderSelection]
+     * @param {boolean} [options.noEntrySelection]
+     * @emit select (item, List)
+     * @emit unselect (item, List)
      */
     constructor(options)
+
+    /**
+     *
+     * @param {object} [parent]
+     * @param {object} [options]
+     * @param {string} [options.name]
+     * @param {string} [options.noLayout]
+     * @param {number} [options.index]
+     */
+    addFolder(parent, options)
+
+    /**
+     *
+     * @param {object} [parent]
+     * @param {object} [options]
+     * @param {string} [options.name]
+     * @param {string} [options.noLayout]
+     * @param {number} [options.index]
+     */
+    addEntry(parent, options)
+
 ```
 ### src/ui.js
 ```js
     /**
      * @param {object} [options]
      * @param {object} [options.theme]
+     * @param {object} [options.div]
+     * @param {(number|string)} [options.background=transparent] fill in the background with this color
+     * @param {number} [options.width=window.innerWidth] width of UI
+     * @param {number} [options.height = window.innerHeight] height of UI
+     * @param {boolean} [options.preventDefault=true] prevent default on input events
+     * @param {boolean} [options.chromeDebug=true] allow ctrl-r to refresh page and ctrl-shift-i to open debug window
      */
     constructor(options)
+
+    /**
+     *
+     * @param {number} [width=window.innerWidth] of the screen
+     * @param {number} [height=window.innerHeight
+     */
+    resize(width, height)
+
+    /**
+     *
+     * @param {string} type
+     * @param {function} callback
+     * @param {object} context
+     */
+    addListener(type, callback)
+
 ```
 ### src/window.js
 ```js
@@ -91,9 +176,18 @@ TBD
      * @param {boolean} [options.resizeable]
      * @param {boolean} [options.clickable]
      * @param {number} [options.fit]
+     * @param {number} [options.fitX]
+     * @param {number} [options.fitY]
+     * @param {boolean} [options.noOversizeX] don't allow horizontal resizing beyond the size of the content
+     * @param {boolean} [options.noOversizeY] don't allow vertical resizing beyond the size of the content
+     * @param {boolean|string} [options.overflow=false] true, x, or y
      * @param {object} [options.theme]
+     * @param {string} [options.place] combination of top/center/bottom and left/center/bottom
+     * @param {number} [options.maxHeight]
+     * @param {number} [options.maxWidth]
      */
     constructor(options)
+
 ```
 ## License 
 MIT License  
