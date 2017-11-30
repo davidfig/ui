@@ -137,8 +137,8 @@ module.exports = class Stack extends Window
             {
                 w.y = i
                 i += w.height + between
-                // switch (this.justify)
-                // {
+                switch (this.justify)
+                {
                 //     case 'left':
                 //         w.x = spacing
                 //         break
@@ -147,9 +147,9 @@ module.exports = class Stack extends Window
                 //         w.x = spacing * 2 + largestWidth - w.width
                 //         break
 
-                //     default:
-                //         w.x = largestWidth / 2 - w.width / 2 + spacing
-                // }
+                    default:
+                        w.x = largestWidth / 2 - w.width / 2
+                }
             }
         }
         super.layout()

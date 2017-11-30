@@ -20,7 +20,7 @@ module.exports = class UI extends PIXI.Container
     {
         super()
         options = options || {}
-        this.type = 'UI'
+        this.types = 'UI'
         this.theme = options.theme || THEME
         const preventDefault = exists(options.preventDefault) ? options.preventDefault : true
         const chromeDebug = exists(options.chromeDebug) ? options.chromeDebug : true
@@ -38,7 +38,6 @@ module.exports = class UI extends PIXI.Container
         this.input.on('keyup', this.keyup, this)
         this.input.on('wheel', this.wheel, this)
         this.listeners = {}
-
     }
 
     /**
@@ -89,6 +88,15 @@ module.exports = class UI extends PIXI.Container
         const point = { x, y }
         const selected = this.selected
         const that = this
+        if (this.modal)
+        {
+            if (!check(this.modal))
+            {
+                this.modal.down(x, y, data)
+            }
+            return
+        }
+
         // if (selected)
         // {
         //     if (selected.windowGraphics.containsPoint(point) && selected.down(x, y, data))
@@ -122,6 +130,16 @@ module.exports = class UI extends PIXI.Container
                 }
             }
         }
+
+        if (this.modal)
+        {
+            if (!check(this.modal))
+            {
+                this.modal.move(x, y, data)
+            }
+            return
+        }
+
         if (check(this))
         {
             data.event.stopPropagation()
@@ -174,6 +192,16 @@ module.exports = class UI extends PIXI.Container
                 }
             }
         }
+
+        if (this.modal)
+        {
+            if (!check(this.modal))
+            {
+                this.modal.up(x, y, data)
+            }
+            return
+        }
+
         if (check(this))
         {
             return true
@@ -270,7 +298,8 @@ module.exports = class UI extends PIXI.Container
 
     update(elapsed)
     {
-        let dirty
+        this.modal = false
+        let dirty = this.dirty
         const queue = [...this.children]
         let i = 0
         while (i < queue.length)
@@ -284,10 +313,15 @@ module.exports = class UI extends PIXI.Container
                     dirty = true
                     w.dirty = false
                 }
+                if (w.modal)
+                {
+                    this.modal = w
+                }
             }
             queue.push(...w.children)
             i++
         }
+        this.dirty = false
         return dirty
     }
 }

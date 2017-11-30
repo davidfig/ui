@@ -25,6 +25,7 @@ module.exports = class Window extends PIXI.Container
      * @param {string} [options.place] combination of top/center/bottom and left/center/bottom
      * @param {number} [options.maxHeight]
      * @param {number} [options.maxWidth]
+     * @param {boolean} [options.modal]
      */
     constructor(options)
     {
@@ -49,6 +50,7 @@ module.exports = class Window extends PIXI.Container
         this.place = options.place
         this.maxHeight = options.maxHeight
         this.maxWidth = options.maxWidth
+        this.modal = options.modal
         this.noFitX = exists(options.width)
         this._windowWidth = options.width || this.get('minimum-width')
         this.noFitY = exists(options.height)
@@ -528,6 +530,21 @@ module.exports = class Window extends PIXI.Container
                 }
             }
         }
+    }
+
+    close()
+    {
+        let parent = this.parent
+        while (parent && !parent.types)
+        {
+            parent = parent.parent
+        }
+        if (parent)
+        {
+
+            parent.dirty = true
+        }
+        this.parent.removeChild(this)
     }
 
     keydown() {}
