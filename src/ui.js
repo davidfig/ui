@@ -108,6 +108,7 @@ module.exports = class UI extends PIXI.Container
         {
             return true
         }
+        this.emit('down', x, y, data)
     }
 
     move(x, y, data)
@@ -145,6 +146,7 @@ module.exports = class UI extends PIXI.Container
             data.event.stopPropagation()
             return true
         }
+        this.emit('move', x, y, data)
     }
 
     wheel(dx, dy, dz, data)
@@ -173,6 +175,7 @@ module.exports = class UI extends PIXI.Container
             data.event.stopPropagation()
             return true
         }
+        this.emit('wheel', dx, dy, dz, data)
     }
 
     up(x, y, data)
@@ -206,6 +209,7 @@ module.exports = class UI extends PIXI.Container
         {
             return true
         }
+        this.emit('up', x, y, data)
     }
 
     keydown(code, special, e)
@@ -244,6 +248,7 @@ module.exports = class UI extends PIXI.Container
                 return true
             }
         }
+        this.emit('keydown', code, special, e)
     }
 
     keyup(code, special, e)
@@ -283,6 +288,7 @@ module.exports = class UI extends PIXI.Container
                 e.stopPropagation()
             }
         }
+        this.emit('keyup', code, special, e)
     }
 
     /**
