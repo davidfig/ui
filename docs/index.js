@@ -66774,23 +66774,21 @@ const exists = require('exists')
 
 const Window = require('./window')
 
-module.exports = class Text extends Window
+module.exports = class Spacer extends Window
 {
     /**
-     * @param {string} text
+     * @param {number} width
+     * @param {number} height
      * @param {object} [options]
      */
     constructor(width, height, options)
     {
         options = options || {}
         options.transparent = exists(options.transparent) ? options.transparent : true
+        options.width = width
+        options.height = height
         super(options)
         this.types.push('Spacer')
-    }
-
-    containsPoint(point)
-    {
-        return this.label.containsPoint(point)
     }
 }
 },{"./window":428,"exists":9}],423:[function(require,module,exports){
@@ -66933,8 +66931,8 @@ module.exports = class Stack extends Window
             {
                 w.y = i
                 i += w.height + between
-                // switch (this.justify)
-                // {
+                switch (this.justify)
+                {
                 //     case 'left':
                 //         w.x = spacing
                 //         break
@@ -66943,9 +66941,9 @@ module.exports = class Stack extends Window
                 //         w.x = spacing * 2 + largestWidth - w.width
                 //         break
 
-                //     default:
-                //         w.x = largestWidth / 2 - w.width / 2 + spacing
-                // }
+                    default:
+                        w.x = largestWidth / 2 - w.width / 2
+                }
             }
         }
         super.layout()
@@ -67439,7 +67437,7 @@ module.exports = class UI extends PIXI.Container
     {
         super()
         options = options || {}
-        this.type = 'UI'
+        this.types = 'UI'
         this.theme = options.theme || THEME
         const preventDefault = exists(options.preventDefault) ? options.preventDefault : true
         const chromeDebug = exists(options.chromeDebug) ? options.chromeDebug : true
@@ -67457,7 +67455,6 @@ module.exports = class UI extends PIXI.Container
         this.input.on('keyup', this.keyup, this)
         this.input.on('wheel', this.wheel, this)
         this.listeners = {}
-
     }
 
     /**
@@ -67508,6 +67505,15 @@ module.exports = class UI extends PIXI.Container
         const point = { x, y }
         const selected = this.selected
         const that = this
+        if (this.modal)
+        {
+            if (!check(this.modal))
+            {
+                this.modal.down(x, y, data)
+            }
+            return
+        }
+
         // if (selected)
         // {
         //     if (selected.windowGraphics.containsPoint(point) && selected.down(x, y, data))
@@ -67541,6 +67547,16 @@ module.exports = class UI extends PIXI.Container
                 }
             }
         }
+
+        if (this.modal)
+        {
+            if (!check(this.modal))
+            {
+                this.modal.move(x, y, data)
+            }
+            return
+        }
+
         if (check(this))
         {
             data.event.stopPropagation()
@@ -67593,6 +67609,16 @@ module.exports = class UI extends PIXI.Container
                 }
             }
         }
+
+        if (this.modal)
+        {
+            if (!check(this.modal))
+            {
+                this.modal.up(x, y, data)
+            }
+            return
+        }
+
         if (check(this))
         {
             return true
@@ -67689,7 +67715,8 @@ module.exports = class UI extends PIXI.Container
 
     update(elapsed)
     {
-        let dirty
+        this.modal = false
+        let dirty = this.dirty
         const queue = [...this.children]
         let i = 0
         while (i < queue.length)
@@ -67703,10 +67730,15 @@ module.exports = class UI extends PIXI.Container
                     dirty = true
                     w.dirty = false
                 }
+                if (w.modal)
+                {
+                    this.modal = w
+                }
             }
             queue.push(...w.children)
             i++
         }
+        this.dirty = false
         return dirty
     }
 }
@@ -67738,6 +67770,7 @@ module.exports = class Window extends PIXI.Container
      * @param {string} [options.place] combination of top/center/bottom and left/center/bottom
      * @param {number} [options.maxHeight]
      * @param {number} [options.maxWidth]
+     * @param {boolean} [options.modal]
      */
     constructor(options)
     {
@@ -67762,6 +67795,7 @@ module.exports = class Window extends PIXI.Container
         this.place = options.place
         this.maxHeight = options.maxHeight
         this.maxWidth = options.maxWidth
+        this.modal = options.modal
         this.noFitX = exists(options.width)
         this._windowWidth = options.width || this.get('minimum-width')
         this.noFitY = exists(options.height)
@@ -68241,6 +68275,21 @@ module.exports = class Window extends PIXI.Container
                 }
             }
         }
+    }
+
+    close()
+    {
+        let parent = this.parent
+        while (parent && !parent.types)
+        {
+            parent = parent.parent
+        }
+        if (parent)
+        {
+
+            parent.dirty = true
+        }
+        this.parent.removeChild(this)
     }
 
     keydown() {}

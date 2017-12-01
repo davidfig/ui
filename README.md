@@ -73,7 +73,8 @@ npm i yy-ui
 ### src/spacer.js
 ```js
     /**
-     * @param {string} text
+     * @param {number} width
+     * @param {number} height
      * @param {object} [options]
      */
     constructor(width, height, options)
@@ -185,6 +186,7 @@ npm i yy-ui
      * @param {string} [options.place] combination of top/center/bottom and left/center/bottom
      * @param {number} [options.maxHeight]
      * @param {number} [options.maxWidth]
+     * @param {boolean} [options.modal]
      */
     constructor(options)
 
