@@ -66006,7 +66006,7 @@ module.exports = class Button extends Window
             this.windowGraphics
                 .clear()
                 .beginFill(this.get('background-select-color'))
-                .drawRoundedRect(shadow, shadow, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2, this.get('corners'))
+                .drawRect(shadow, shadow, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2)
                 .endFill()
         }
     }
@@ -67001,7 +67001,6 @@ module.exports={
     "Window": {
         "font-family": "consolas",
         "font-size": "1.75em",
-        "corners": 10,
         "background-color": "#dddddd",
         "foreground-color": 0,
         "spacing": 10,
@@ -67017,16 +67016,19 @@ module.exports={
         "scrollbar-width": 10,
         "scrollbar-foreground-color": "#8888ff",
         "scrollbar-background-color": "#aaaaaa",
-        "scrollbar-spacing": 2
+        "scrollbar-spacing": 2,
+        "title-bar": 10,
+        "title-bar-background-color": "#8888ff"
     },
     "Button": {
         "foreground-color": 0,
         "background-color": "#f9f9f9",
         "background-select-color": "#c9c9c9",
-        "disabled-alpha": 0.5
+        "disabled-alpha": 0.5,
+        "title-bar": 0
     },
     "Text": {
-        "corners": 0
+        "title-bar": 0
     },
     "EditText": {
         "spacing": 3,
@@ -67034,28 +67036,33 @@ module.exports={
         "edit-background-color": "#888888",
         "edit-foreground-select-color": "#ffffff",
         "edit-background-select-color": "#000000",
-        "foreground-disabled-color": "#bbbbbb"
+        "foreground-disabled-color": "#bbbbbb",
+        "title-bar": 0
     },
     "Stack": {
         "between": 5,
-        "spacing": 0
+        "spacing": 0,
+        "title-bar": 0
     },
     "List": {
         "between": 5,
         "background-color": "#ffffff",
-        "background-select-color": "#ddddff"
+        "background-select-color": "#ddddff",
+        "title-bar": 0
     },
     "Dialog": {
     },
     "Spacer": {
         "minimum-width": 0,
         "minimum-height": 0,
-        "spacing": 0
+        "spacing": 0,
+        "title-bar": 0
     },
     "Tree": {
         "between": 4,
         "background-color": "#ffffff",
-        "background-select-color": "#ddddff"
+        "background-select-color": "#ddddff",
+        "title-bar": 0
     }
 }
 },{}],426:[function(require,module,exports){
@@ -67430,7 +67437,7 @@ module.exports = class UI extends PIXI.Container
      * @param {(number|string)} [options.background=transparent] fill in the background with this color
      * @param {number} [options.width=window.innerWidth] width of UI
      * @param {number} [options.height = window.innerHeight] height of UI
-     * @param {boolean} [options.preventDefault=true] prevent default on input events
+     * @param {boolean} [options.preventDefault=false] prevent default on input events
      * @param {boolean} [options.chromeDebug=true] allow ctrl-r to refresh page and ctrl-shift-i to open debug window
      */
     constructor(options)
@@ -67439,7 +67446,7 @@ module.exports = class UI extends PIXI.Container
         options = options || {}
         this.types = 'UI'
         this.theme = options.theme || THEME
-        const preventDefault = exists(options.preventDefault) ? options.preventDefault : true
+        const preventDefault = options.preventDefault
         const chromeDebug = exists(options.chromeDebug) ? options.chromeDebug : true
         if (options.background)
         {
@@ -67525,6 +67532,7 @@ module.exports = class UI extends PIXI.Container
         {
             return true
         }
+        this.emit('down', x, y, data)
     }
 
     move(x, y, data)
@@ -67562,6 +67570,7 @@ module.exports = class UI extends PIXI.Container
             data.event.stopPropagation()
             return true
         }
+        this.emit('move', x, y, data)
     }
 
     wheel(dx, dy, dz, data)
@@ -67579,6 +67588,7 @@ module.exports = class UI extends PIXI.Container
                 {
                     if (child.wheel(dx, dy, dz, data))
                     {
+                        data.event.preventDefault()
                         return true
                     }
                 }
@@ -67590,6 +67600,7 @@ module.exports = class UI extends PIXI.Container
             data.event.stopPropagation()
             return true
         }
+        this.emit('wheel', dx, dy, dz, data)
     }
 
     up(x, y, data)
@@ -67623,6 +67634,7 @@ module.exports = class UI extends PIXI.Container
         {
             return true
         }
+        this.emit('up', x, y, data)
     }
 
     keydown(code, special, e)
@@ -67661,6 +67673,7 @@ module.exports = class UI extends PIXI.Container
                 return true
             }
         }
+        this.emit('keydown', code, special, e)
     }
 
     keyup(code, special, e)
@@ -67700,6 +67713,7 @@ module.exports = class UI extends PIXI.Container
                 e.stopPropagation()
             }
         }
+        this.emit('keyup', code, special, e)
     }
 
     /**
@@ -67890,17 +67904,22 @@ module.exports = class Window extends PIXI.Container
     drawWindowShape()
     {
         const shadow = this.get('shadow-size')
+        const titlebar = this.get('title-bar') || 0
         if (!this.transparent)
         {
             this.windowShadowGraphics
                 .clear()
                 .beginFill(0, this.get('shadow-alpha'))
-                .drawRoundedRect(0, 0, this._windowWidth, this._windowHeight, this.get('corners'))
+                .drawRect(0, -titlebar, this._windowWidth, this._windowHeight + titlebar)
                 .endFill()
             this.windowGraphics
                 .clear()
                 .beginFill(this.get('background-color'))
-                .drawRoundedRect(shadow, shadow, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2, this.get('corners'))
+                .drawRect(shadow, shadow - titlebar, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2 + titlebar)
+                .endFill()
+            this.windowGraphics
+                .beginFill(this.get('title-bar-background-color'))
+                .drawRect(shadow, -titlebar, this._windowWidth - shadow * 2, titlebar)
                 .endFill()
             if (this.resizeable)
             {

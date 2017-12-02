@@ -145,7 +145,7 @@ npm i yy-ui
      * @param {(number|string)} [options.background=transparent] fill in the background with this color
      * @param {number} [options.width=window.innerWidth] width of UI
      * @param {number} [options.height = window.innerHeight] height of UI
-     * @param {boolean} [options.preventDefault=true] prevent default on input events
+     * @param {boolean} [options.preventDefault=false] prevent default on input events
      * @param {boolean} [options.chromeDebug=true] allow ctrl-r to refresh page and ctrl-shift-i to open debug window
      */
     constructor(options)
