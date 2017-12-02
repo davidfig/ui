@@ -2,7 +2,6 @@
     "Window": {
         "font-family": "consolas",
         "font-size": "1.75em",
-        "corners": 10,
         "background-color": "#dddddd",
         "foreground-color": 0,
         "spacing": 10,
@@ -18,16 +17,19 @@
         "scrollbar-width": 10,
         "scrollbar-foreground-color": "#8888ff",
         "scrollbar-background-color": "#aaaaaa",
-        "scrollbar-spacing": 2
+        "scrollbar-spacing": 2,
+        "title-bar": 10,
+        "title-bar-background-color": "#8888ff"
     },
     "Button": {
         "foreground-color": 0,
         "background-color": "#f9f9f9",
         "background-select-color": "#c9c9c9",
-        "disabled-alpha": 0.5
+        "disabled-alpha": 0.5,
+        "title-bar": 0
     },
     "Text": {
-        "corners": 0
+        "title-bar": 0
     },
     "EditText": {
         "spacing": 3,
@@ -35,27 +37,32 @@
         "edit-background-color": "#888888",
         "edit-foreground-select-color": "#ffffff",
         "edit-background-select-color": "#000000",
-        "foreground-disabled-color": "#bbbbbb"
+        "foreground-disabled-color": "#bbbbbb",
+        "title-bar": 0
     },
     "Stack": {
         "between": 5,
-        "spacing": 0
+        "spacing": 0,
+        "title-bar": 0
     },
     "List": {
         "between": 5,
         "background-color": "#ffffff",
-        "background-select-color": "#ddddff"
+        "background-select-color": "#ddddff",
+        "title-bar": 0
     },
     "Dialog": {
     },
     "Spacer": {
         "minimum-width": 0,
         "minimum-height": 0,
-        "spacing": 0
+        "spacing": 0,
+        "title-bar": 0
     },
     "Tree": {
         "between": 4,
         "background-color": "#ffffff",
-        "background-select-color": "#ddddff"
+        "background-select-color": "#ddddff",
+        "title-bar": 0
     }
 }

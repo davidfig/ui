@@ -145,17 +145,22 @@ module.exports = class Window extends PIXI.Container
     drawWindowShape()
     {
         const shadow = this.get('shadow-size')
+        const titlebar = this.get('title-bar') || 0
         if (!this.transparent)
         {
             this.windowShadowGraphics
                 .clear()
                 .beginFill(0, this.get('shadow-alpha'))
-                .drawRoundedRect(0, 0, this._windowWidth, this._windowHeight, this.get('corners'))
+                .drawRect(0, -titlebar, this._windowWidth, this._windowHeight + titlebar)
                 .endFill()
             this.windowGraphics
                 .clear()
                 .beginFill(this.get('background-color'))
-                .drawRoundedRect(shadow, shadow, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2, this.get('corners'))
+                .drawRect(shadow, shadow - titlebar, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2 + titlebar)
+                .endFill()
+            this.windowGraphics
+                .beginFill(this.get('title-bar-background-color'))
+                .drawRect(shadow, -titlebar, this._windowWidth - shadow * 2, titlebar)
                 .endFill()
             if (this.resizeable)
             {

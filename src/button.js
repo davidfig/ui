@@ -123,7 +123,7 @@ module.exports = class Button extends Window
             this.windowGraphics
                 .clear()
                 .beginFill(this.get('background-select-color'))
-                .drawRoundedRect(shadow, shadow, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2, this.get('corners'))
+                .drawRect(shadow, shadow, this._windowWidth - shadow * 2, this._windowHeight - shadow * 2)
                 .endFill()
         }
     }
