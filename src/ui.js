@@ -13,7 +13,7 @@ module.exports = class UI extends PIXI.Container
      * @param {(number|string)} [options.background=transparent] fill in the background with this color
      * @param {number} [options.width=window.innerWidth] width of UI
      * @param {number} [options.height = window.innerHeight] height of UI
-     * @param {boolean} [options.preventDefault=true] prevent default on input events
+     * @param {boolean} [options.preventDefault=false] prevent default on input events
      * @param {boolean} [options.chromeDebug=true] allow ctrl-r to refresh page and ctrl-shift-i to open debug window
      */
     constructor(options)
@@ -22,7 +22,7 @@ module.exports = class UI extends PIXI.Container
         options = options || {}
         this.types = 'UI'
         this.theme = options.theme || THEME
-        const preventDefault = exists(options.preventDefault) ? options.preventDefault : true
+        const preventDefault = options.preventDefault
         const chromeDebug = exists(options.chromeDebug) ? options.chromeDebug : true
         if (options.background)
         {
@@ -164,6 +164,7 @@ module.exports = class UI extends PIXI.Container
                 {
                     if (child.wheel(dx, dy, dz, data))
                     {
+                        data.event.preventDefault()
                         return true
                     }
                 }
