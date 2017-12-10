@@ -66335,6 +66335,7 @@ module.exports = class EditText extends Window
 
     down(x, y)
     {
+        this.bringToTop()
         if (this.disabled)
         {
             return
@@ -66735,6 +66736,7 @@ module.exports = class List extends Window
 
     down(x, y)
     {
+        this.bringToTop()
         const point = { x, y }
         for (let item of this.items)
         {
@@ -67279,6 +67281,7 @@ module.exports = class Tree extends UI.Window
 
     down(x, y)
     {
+        this.bringToTop()
         const point = { x, y }
         for (let folder of this.folders)
         {
@@ -67995,10 +67998,24 @@ module.exports = class Window extends PIXI.Container
         }
     }
 
+    bringToTop()
+    {
+        let parent = this
+        while (parent.parent && parent.parent.types !== 'UI')
+        {
+            parent = parent.parent
+        }
+        if (parent.parent.types === 'UI')
+        {
+            parent.parent.addChild(parent)
+        }
+        this.dirty = true
+    }
+
     down(x, y, data)
     {
         const point = { x, y }
-        this.parent.addChild(this)
+        this.bringToTop()
         if (this.resizeable)
         {
             const size = this.get('resize-border-size')
@@ -68028,6 +68045,7 @@ module.exports = class Window extends PIXI.Container
             this.isDown = { x: this.x - point.x, y: this.y - point.y }
             return true
         }
+        return true
     }
 
     move(x, y, data)
