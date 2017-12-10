@@ -89,6 +89,7 @@ module.exports = class List extends Window
 
     down(x, y)
     {
+        this.bringToTop()
         const point = { x, y }
         for (let item of this.items)
         {

@@ -211,6 +211,7 @@ module.exports = class Tree extends UI.Window
 
     down(x, y)
     {
+        this.bringToTop()
         const point = { x, y }
         for (let folder of this.folders)
         {

@@ -283,6 +283,7 @@ module.exports = class EditText extends Window
 
     down(x, y)
     {
+        this.bringToTop()
         if (this.disabled)
         {
             return
