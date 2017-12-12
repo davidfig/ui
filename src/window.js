@@ -43,6 +43,7 @@ module.exports = class Window extends PIXI.Container
         this.special = super.addChild(new PIXI.Container())
         this.resizeable = options.resizeable
         this.clickable = options.clickable
+        this.fullscreen = options.fullscreen
         this.theme = options.theme || {}
         this.changeCursor = options.cursor || null
         this.draggable = options.draggable
@@ -433,7 +434,13 @@ module.exports = class Window extends PIXI.Container
                 this._windowHeight = this._wbs.y + spacing
             }
         }
-        if (this.place && this.parent)
+        if (this.fullscreen)
+        {
+            this._windowWidth = window.innerWidth
+            this._windowHeight = window.innerHeight
+            this.position.set(0, 0)
+        }
+        else if (this.place && this.parent)
         {
             const parent = this.getUIParent()
             if (parent)
