@@ -98,6 +98,7 @@ module.exports = class Button extends Window
     set text(value)
     {
         this._text = value
+        this.layout()
         this.dirty = true
     }
 
