@@ -40,35 +40,38 @@ module.exports = class Button extends Window
     layout()
     {
         super.layout()
-        const item = this.label ? this.label : this.text
-        if (this.noFitX)
+        const item = this.label ? this.label : this.sprite ? this.sprite : null
+        if (item)
         {
-            if (this.align.indexOf('left') !== -1)
+            if (this.noFitX)
             {
-                item.x = 0
+                if (this.align.indexOf('left') !== -1)
+                {
+                    item.x = 0
+                }
+                else if (this.align.indexOf('right') !== -1)
+                {
+                    item.x = this.right - item.width
+                }
+                else
+                {
+                    item.x = this.center.x - item.width / 2
+                }
             }
-            else if (this.align.indexOf('right') !== -1)
+            if (this.noFitY)
             {
-                item.x = this.right - item.width
-            }
-            else
-            {
-                item.x = this.center.x - item.width / 2
-            }
-        }
-        if (this.noFitY)
-        {
-            if (this.align.indexOf('top') !== -1)
-            {
-                item.y = 0
-            }
-            else if (this.align.indexOf('bottom') !== -1)
-            {
-                item.y = this.bottom - item.height
-            }
-            else
-            {
-                item.y = this.center.y - item.height / 2
+                if (this.align.indexOf('top') !== -1)
+                {
+                    item.y = 0
+                }
+                else if (this.align.indexOf('bottom') !== -1)
+                {
+                    item.y = this.bottom - item.height
+                }
+                else
+                {
+                    item.y = this.center.y - item.height / 2
+                }
             }
         }
         if (this.label)
@@ -93,11 +96,11 @@ module.exports = class Button extends Window
 
     get text()
     {
-        return this._text
+        return this.label.text
     }
     set text(value)
     {
-        this._text = value
+        this.label.text = value
         this.layout()
         this.dirty = true
     }
