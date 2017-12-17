@@ -1,4 +1,5 @@
 const PIXI = require('pixi.js')
+const exists = require('exists')
 
 const Window = require('./window')
 
@@ -13,6 +14,7 @@ module.exports = class List extends Window
     constructor(options)
     {
         options = options || {}
+        options.overflow = exists(options.overflow) ? options.overflow : true
         super(options)
         this.types.push('List')
         this.items = []
@@ -68,7 +70,15 @@ module.exports = class List extends Window
             w.y = y
             y += w.height + between
         }
-        this._windowHeight = y - between + spacing * 2
+        const height = y - between + spacing * 2
+        if (this.y + height > window.innerHeight)
+        {
+            this._windowHeight = window.innerHeight - this.y - spacing * 2 - 20
+        }
+        else
+        {
+            this._windowHeight = y - between + spacing * 2
+        }
         this.showSelected()
         super.layout()
     }
