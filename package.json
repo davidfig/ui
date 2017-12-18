@@ -1,6 +1,6 @@
 {
     "name": "yy-ui",
-    "version": "0.4.3",
+    "version": "0.5.0",
     "description": "pixi.js UI library",
     "main": "index.js",
     "scripts": {
