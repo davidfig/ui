@@ -570,6 +570,7 @@ module.exports = class EditText extends Window
                         return true
 
                     case 27:
+                        this.emit('cancel', this)
                         this.editing = false
                         this.words.text = this.original
                         this.layout()
